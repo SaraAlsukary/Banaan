@@ -3,12 +3,8 @@ import { db } from "@/db";
 import { subcategories, categories } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { put } from "@vercel/blob"; // استبدال fs بـ Vercel Blob
 
-// استيراد المكتبات اللازمة لحفظ الملفات
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
-
-// 1. جلب التصنيفات الفرعية مع اسم التصنيف الأساسي التابع لها
 export async function getSubcategories() {
     const data = await db.select({
         id: subcategories.id,
@@ -16,20 +12,18 @@ export async function getSubcategories() {
         imageUrl: subcategories.imageUrl,
         createdAt: subcategories.createdAt,
         categoryId: subcategories.categoryId,
-        categoryName: categories.name, // جلب اسم التصنيف الأساسي
+        categoryName: categories.name,
     })
     .from(subcategories)
     .leftJoin(categories, eq(subcategories.categoryId, categories.id))
     .orderBy(subcategories.createdAt);
 
-    // تحويل التاريخ إلى نص لتجنب مشاكل React
     return data.map((subcat) => ({
         ...subcat,
         createdAt: subcat.createdAt ? new Date(subcat.createdAt).toISOString().split('T')[0] : "بدون تاريخ",
     }));
 }
 
-// 2. إضافة أو تعديل تصنيف فرعي
 export async function saveSubcategory(formData: FormData, id?: number) {
     try {
         const name = formData.get("name") as string;
@@ -38,37 +32,27 @@ export async function saveSubcategory(formData: FormData, id?: number) {
         
         let imageUrl = null;
 
-        // منطق حفظ الصورة الفعلي
         if (imageFile && imageFile.size > 0) {
-            const arrayBuffer = await imageFile.arrayBuffer();
-            const buffer = Buffer.from(arrayBuffer);
-
-            const safeFileName = `${Date.now()}-${imageFile.name.replace(/\s+/g, '-')}`;
-            const uploadDir = path.join(process.cwd(), "public/uploads");
-
-            await mkdir(uploadDir, { recursive: true });
-
-            const filePath = path.join(uploadDir, safeFileName);
-            await writeFile(filePath, buffer);
-            
-            imageUrl = `/uploads/${safeFileName}`; 
+            const safeFileName = `subcategories/${Date.now()}-${imageFile.name.replace(/\s+/g, '-')}`;
+            const blob = await put(safeFileName, imageFile, {
+                access: "public",
+            });
+            imageUrl = blob.url;
         }
 
         if (id) {
-            // [منطق التعديل]
             await db.update(subcategories)
               .set({ 
                   name, 
                   categoryId, 
-                  ...(imageUrl && { imageUrl }) // لا تقم بتحديث الصورة إذا لم يرفع صورة جديدة
+                  ...(imageUrl && { imageUrl }) 
               })
               .where(eq(subcategories.id, id));
         } else {
-            // [منطق الإضافة]
             await db.insert(subcategories).values({ name, categoryId, imageUrl });
         }
 
-        revalidatePath("/subcategories"); // تحديث مسار الصفحة
+        revalidatePath("/subcategories");
         return { success: true };
     } catch (error) {
         console.error("Error saving subcategory:", error);
@@ -76,7 +60,6 @@ export async function saveSubcategory(formData: FormData, id?: number) {
     }
 }
 
-// 3. حذف التصنيف الفرعي
 export async function deleteSubcategory(id: number) {
     try {
         await db.delete(subcategories).where(eq(subcategories.id, id));

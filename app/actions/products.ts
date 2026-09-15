@@ -4,34 +4,26 @@ import {
     products, 
     productImages, 
     productSubcategories, 
-    // subcategories 
 } from "@/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
+import { put } from "@vercel/blob"; // استبدال fs بـ Vercel Blob
 
 // ==========================================
-// دالة مساعدة لرفع الصور محلياً (Helper Function)
+// دالة مساعدة لرفع الصور إلى Vercel Blob
 // ==========================================
 async function uploadFile(file: File): Promise<string> {
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const safeFileName = `${Date.now()}-${file.name.replace(/\s+/g, '-')}`;
-    const uploadDir = path.join(process.cwd(), "public/uploads/products");
-    
-    await mkdir(uploadDir, { recursive: true });
-    const filePath = path.join(uploadDir, safeFileName);
-    await writeFile(filePath, buffer);
-    
-    return `/uploads/products/${safeFileName}`;
+    const safeFileName = `products/${Date.now()}-${file.name.replace(/\s+/g, '-')}`;
+    const blob = await put(safeFileName, file, {
+        access: "public",
+    });
+    return blob.url; // إرجاع رابط الصورة السحابي Direct URL
 }
 
 // ==========================================
-// 1. جلب جميع المنتجات (مع تصنيفاتها لعرضها في الجدول)
+// 1. جلب جميع المنتجات
 // ==========================================
 export async function getProducts() {
-    // نستخدم Drizzle Relational Queries لجلب المنتج مع صوره وتصنيفاته بسهولة
     const data = await db.query.products.findMany({
         with: {
             subcategories: {
@@ -44,20 +36,18 @@ export async function getProducts() {
         orderBy: (products, { desc }) => [desc(products.createdAt)]
     });
 
-    // تبسيط شكل البيانات لتسهيل عرضها في الجدول
     return data.map((product) => ({
         id: product.id,
         name: product.name,
         price: product.price,
         imageUrl: product.imageUrl,
-        // جلب أسماء التصنيفات ودمجها كنص واحد (مثال: "تطريز، حقائب")
         categoriesNames: product.subcategories.map(s => s.subcategory.name).join('، '),
         createdAt: product.createdAt ? new Date(product.createdAt).toISOString().split('T')[0] : "بدون تاريخ",
     }));
 }
 
 // ==========================================
-// 2. جلب منتج واحد (لصفحة التعديل)
+// 2. جلب منتج واحد
 // ==========================================
 export async function getProductById(id: number) {
     const product = await db.query.products.findFirst({
@@ -71,7 +61,7 @@ export async function getProductById(id: number) {
 }
 
 // ==========================================
-// 3. إضافة أو تعديل منتج (Create / Update)
+// 3. إضافة أو تعديل منتج
 // ==========================================
 export async function saveProduct(formData: FormData, id?: number) {
     try {
@@ -119,7 +109,6 @@ export async function saveProduct(formData: FormData, id?: number) {
         }
 
         // --- إدارة العلاقات (التصنيفات الفرعية) ---
-        // نقوم بحذف القديم ثم إدخال الجديد بشكل منفصل
         await db.delete(productSubcategories).where(eq(productSubcategories.productId, productId));
         
         if (subcategoryIds.length > 0) {
@@ -149,8 +138,9 @@ export async function saveProduct(formData: FormData, id?: number) {
         return { success: false, error: error.message || "حدث خطأ أثناء حفظ المنتج" };
     }
 }
+
 // ==========================================
-// 4. حذف صورة إضافية معينة (حذف صورة واحدة من الصور الإضافية)
+// 4. حذف صورة إضافية معينة
 // ==========================================
 export async function deleteProductImage(imageId: number) {
     try {
@@ -167,8 +157,6 @@ export async function deleteProductImage(imageId: number) {
 // ==========================================
 export async function deleteProduct(id: number) {
     try {
-        // بفضل (`onDelete: "cascade"`) في ملف الـ Schema، 
-        // حذف المنتج سيقوم تلقائياً بحذف الصور الإضافية وعلاقات التصنيفات المرتبطة به.
         await db.delete(products).where(eq(products.id, id));
         revalidatePath("/admin/products");
         return { success: true };
