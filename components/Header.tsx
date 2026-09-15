@@ -6,10 +6,15 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Menu, X, ShoppingBag, Search, User, Star, Truck, ShieldCheck } from "lucide-react";
+// 1. استيراد سياق السلة
+import { useCart } from "@/context/CartContext";
 
 export default function Header() {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const pathname = usePathname();
+    
+    // 2. استخراج العداد من السياق
+    const { cartItemsCount, setIsCartOpen } = useCart(); 
 
     const navLinks = [
         { name: 'الرئيسية', path: '/' },
@@ -62,12 +67,19 @@ export default function Header() {
                             <button className="hover:text-banan-brown transition-colors">
                                 <User size={20} />
                             </button>
-                            <Link href="/checkout" className="hover:text-banan-brown transition-colors relative">
+                            
+                            {/* 3. تعديل أيقونة السلة للشاشات الكبيرة */}
+                            <button 
+                                onClick={() => setIsCartOpen(true)} 
+                                className="hover:text-banan-brown transition-colors relative"
+                            >
                                 <ShoppingBag size={20} />
-                                <span className="absolute -top-1.5 -right-1.5 bg-banan-brown text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
-                                    0
-                                </span>
-                            </Link>
+                                {cartItemsCount > 0 && (
+                                    <span className="absolute -top-1.5 -right-1.5 bg-banan-brown text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
+                                        {cartItemsCount}
+                                    </span>
+                                )}
+                            </button>
                         </div>
 
                         <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="md:hidden p-1 text-banan-olive">
@@ -88,9 +100,22 @@ export default function Header() {
                             <div className="flex justify-around py-3 mb-2 border-b border-gray-100 text-banan-olive">
                                 <Search size={22} />
                                 <User size={22} />
-                                <Link href="/checkout" className="relative">
+                                
+                                {/* 4. تعديل أيقونة السلة للجوال */}
+                                <button 
+                                    onClick={() => {
+                                        setIsCartOpen(true);
+                                        setIsMenuOpen(false); // إغلاق القائمة عند فتح السلة
+                                    }} 
+                                    className="relative"
+                                >
                                     <ShoppingBag size={22} />
-                                </Link>
+                                    {cartItemsCount > 0 && (
+                                        <span className="absolute -top-1.5 -right-1.5 bg-banan-brown text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
+                                            {cartItemsCount}
+                                        </span>
+                                    )}
+                                </button>
                             </div>
                             {navLinks.map((link) => (
                                 <Link

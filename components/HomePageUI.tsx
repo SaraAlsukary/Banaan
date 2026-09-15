@@ -18,13 +18,23 @@ import {
     Clock,
     // Instagram
 } from 'lucide-react';
+import { useCart } from '@/context/CartContext';
 
 export interface CategoryItem {
     id: number;
     name: string;
     imageUrl: string | null;
 }
-
+// مكون أيقونة إنستغرام مخصص (SVG)
+function Instagram({ size = 22 }: { size?: number }) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+            <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+            <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+        </svg>
+    );
+}
 export interface ProductItem {
     id: number;
     name: string;
@@ -68,7 +78,7 @@ export default function HomePageUI({
 
     const displayCategories = categoriesList.length > 0 ? categoriesList : defaultCategories;
     const displayProducts = bestsellersList.length > 0 ? bestsellersList : defaultProducts;
-
+    const { addToCart } = useCart();
     const bgColors = ['bg-rose-100', 'bg-green-100', 'bg-orange-100', 'bg-red-100', 'bg-purple-100'];
 
     return (
@@ -113,10 +123,10 @@ export default function HomePageUI({
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.1 }}
-                        className="text-5xl md:text-7xl lg:text-8xl font-black mb-8 leading-tight text-banan-olive drop-shadow-xl"
+                        className="text-xl md:text-3xl lg:text-5xl font-black mb-8 leading-tight text-banan-olive drop-shadow-xl"
                     >
-                        كل ما تحتاجه <br />
-                        لتصنعها بيديك، <br />
+                        كل ما تحتاجه
+                        لتصنعها بيديك،
                         في حقيبة واحدة.
                     </motion.h1>
 
@@ -142,7 +152,7 @@ export default function HomePageUI({
                             تسوق الآن <ArrowLeft size={24} />
                         </Link>
 
-                        <div className="flex items-center gap-4 bg-white/80 backdrop-blur-md px-6 py-3 rounded-full shadow-lg">
+                        {/* <div className="flex items-center gap-4 bg-white/80 backdrop-blur-md px-6 py-3 rounded-full shadow-lg">
                             <div className="flex -space-x-4 space-x-reverse">
                                 {[1, 2, 3, 4].map((i) => (
                                     <div key={i} className="w-12 h-12 rounded-full bg-gray-200 border-2 border-white overflow-hidden shadow-sm relative">
@@ -153,7 +163,7 @@ export default function HomePageUI({
                             <div className="text-base font-bold text-banan-olive text-right">
                                 +1500 <br /><span className="text-sm font-normal opacity-90">عميلة سعيدة</span>
                             </div>
-                        </div>
+                        </div> */}
                     </motion.div>
                 </div>
             </section>
@@ -195,10 +205,10 @@ export default function HomePageUI({
                         <Link href={`/categories/${cat.id}`} key={cat.id}>
                             <motion.div whileHover={{ y: -5 }} className="flex flex-col items-center group cursor-pointer">
                                 <div className={`w-full aspect-square rounded-3xl ${bgColors[idx % bgColors.length]} p-2 mb-3 overflow-hidden shadow-sm`}>
-                                    <img 
-                                        src={cat.imageUrl || 'https://via.placeholder.com/300'} 
-                                        alt={cat.name} 
-                                        className="w-full h-full object-cover rounded-2xl group-hover:scale-110 transition-transform duration-300" 
+                                    <img
+                                        src={cat.imageUrl || 'https://via.placeholder.com/300'}
+                                        alt={cat.name}
+                                        className="w-full h-full object-cover rounded-2xl group-hover:scale-110 transition-transform duration-300"
                                     />
                                 </div>
                                 <span className="font-bold text-banan-olive text-center">{cat.name}</span>
@@ -229,10 +239,10 @@ export default function HomePageUI({
                             <div>
                                 <Link href={`/products/${product.id}`}>
                                     <div className="aspect-square bg-gray-50 rounded-2xl mb-4 overflow-hidden relative cursor-pointer">
-                                        <img 
-                                            src={product.imageUrl} 
-                                            alt={product.name} 
-                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                                        <img
+                                            src={product.imageUrl}
+                                            alt={product.name}
+                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                         />
                                     </div>
                                 </Link>
@@ -246,7 +256,16 @@ export default function HomePageUI({
 
                             <div className="px-2 pb-2 flex justify-between items-center mt-2">
                                 <span className="font-black text-lg text-banan-olive">${product.price}</span>
-                                <button className="bg-banan-bg p-2 rounded-xl text-banan-olive hover:bg-banan-olive-light hover:text-white transition-colors">
+                                <button
+                                    // ربط الزر بدالة الإضافة
+                                    onClick={() => addToCart({
+                                        id: product.id,
+                                        name: product.name,
+                                        price: product.price,
+                                        imageUrl: product.imageUrl
+                                    })}
+                                    className="bg-banan-bg p-2 rounded-xl text-banan-olive hover:bg-banan-olive-light hover:text-white transition-colors"
+                                >
                                     <ShoppingBag size={18} />
                                 </button>
                             </div>
@@ -273,7 +292,7 @@ export default function HomePageUI({
 
                         <div className="bg-white rounded-2xl p-6 shadow-sm flex flex-col items-center text-center space-y-3">
                             <div className="w-12 h-12 rounded-xl bg-banan-bg flex items-center justify-center text-banan-brown">
-                                {/* <Instagram size={24} /> */}
+                                <Instagram size={24} />
                             </div>
                             <h4 className="font-bold">إنستغرام</h4>
                             <a href="https://instagram.com" target="_blank" rel="noreferrer" className="text-sm opacity-80 hover:underline">
@@ -286,7 +305,7 @@ export default function HomePageUI({
                                 <MapPin size={24} />
                             </div>
                             <h4 className="font-bold">العنوان</h4>
-                            <p className="text-sm opacity-80">سوريا، دمشق</p>
+                            <p className="text-sm opacity-80">سوريا، حلب</p>
                         </div>
 
                         <div className="bg-white rounded-2xl p-6 shadow-sm flex flex-col items-center text-center space-y-3">

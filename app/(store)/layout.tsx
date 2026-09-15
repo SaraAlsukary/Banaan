@@ -6,7 +6,9 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import PageTransition from "@/components/PageTransition";
 import { ClerkProvider } from "@clerk/nextjs";
-
+import FloatingButtons from "@/components/FloatingButtons";
+import { CartProvider } from "@/context/CartContext";
+import CartSidebar from "@/components/SideCart";
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
   variable: "--font-arabic", // ربط الخط مع متغير Tailwind
@@ -27,13 +29,17 @@ export default function RootLayout({
 
       <html lang="ar" dir="rtl" className={cairo.variable}>
         <body className="flex flex-col min-h-screen">
-          <Header />
+          <CartProvider>
 
-          <PageTransition>
-            {children}
-          </PageTransition>
+            <Header />
 
-          <Footer />
+            <PageTransition>
+              {children}
+            </PageTransition>
+            <FloatingButtons />
+            <CartSidebar />
+            <Footer />
+          </CartProvider>
         </body>
       </html>
     </ClerkProvider>

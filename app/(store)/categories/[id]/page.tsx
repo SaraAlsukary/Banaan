@@ -4,23 +4,35 @@ import { eq } from "drizzle-orm";
 import CategoryCard from "@/components/CategoryCard";
 import { notFound } from "next/navigation";
 
-export default async function SubCategoriesPage({ params }: { params: { id: string } }) {
-  const categoryId = parseInt(params.id);
+// لاحظ تغيير نوع params إلى Promise
+export default async function SubCategoriesPage({ 
+  params 
+}: { 
+  params: Promise<{ id: string }> 
+}) {
+  // 1. انتظار (await) الـ params لفك تشفيرها في الإصدارات الحديثة
+  const resolvedParams = await params;
+  const categoryId = parseInt(resolvedParams.id);
 
-  // التأكد من أن الـ id رقم صحيح
+  // 2. التأكد من أن الـ id رقم صحيح
   if (isNaN(categoryId)) {
     notFound();
   }
 
-  // جلب اسم التصنيف الأساسي للعنوان
-  const mainCategory = await db.select().from(categories).where(eq(categories.id, categoryId)).limit(1);
+  // 3. جلب اسم التصنيف الأساسي للعنوان
+  const mainCategory = await db.select()
+    .from(categories)
+    .where(eq(categories.id, categoryId))
+    .limit(1);
   
   if (mainCategory.length === 0) {
     notFound(); // إرجاع صفحة 404 إذا لم يكن التصنيف موجوداً
   }
 
-  // جلب التصنيفات الفرعية المرتبطة بهذا التصنيف الأساسي
-  const subs = await db.select().from(subcategories).where(eq(subcategories.categoryId, categoryId));
+  // 4. جلب التصنيفات الفرعية المرتبطة بهذا التصنيف الأساسي
+  const subs = await db.select()
+    .from(subcategories)
+    .where(eq(subcategories.categoryId, categoryId));
 
   return (
     <div className="container mx-auto px-4 py-12" dir="rtl">
@@ -38,7 +50,7 @@ export default async function SubCategoriesPage({ params }: { params: { id: stri
               id={sub.id}
               name={sub.name}
               imageUrl={sub.imageUrl}
-              href={`/products?subId=${sub.id}`} // توجيه لصفحة المنتجات الخاصة بهذا التصنيف الفرعي
+              href={`/products?subId=${sub.id}`}
               linkText="عرض المنتجات"
             />
           ))}
