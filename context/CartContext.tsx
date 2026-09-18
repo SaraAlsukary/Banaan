@@ -14,9 +14,10 @@ interface CartContextType {
     cartItems: CartItem[];
     isCartOpen: boolean;
     setIsCartOpen: (isOpen: boolean) => void;
-    addToCart: (item: Omit<CartItem, 'quantity'>) => void;
+    addToCart: (item: Omit<CartItem, 'quantity'>, quantity?: number) => void;
     removeFromCart: (id: number) => void;
     updateQuantity: (id: number, quantity: number) => void;
+    clearCart: () => void;
     cartTotal: number;
     cartItemsCount: number;
 }
@@ -41,24 +42,24 @@ export function CartProvider({ children }: { children: ReactNode }) {
         setIsLoaded(true);
     }, []);
 
-    // حفظ البيانات في localStorage عند أي تغيير في السلة
+    // حفظ البيانات في localStorage
     useEffect(() => {
         if (isLoaded) {
             localStorage.setItem('banan_cart', JSON.stringify(cartItems));
         }
     }, [cartItems, isLoaded]);
 
-    const addToCart = (item: Omit<CartItem, 'quantity'>) => {
+    const addToCart = (item: Omit<CartItem, 'quantity'>, quantityToAdd = 1) => {
         setCartItems(prev => {
             const existingItem = prev.find(i => i.id === item.id);
             if (existingItem) {
                 return prev.map(i => 
-                    i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i
+                    i.id === item.id ? { ...i, quantity: i.quantity + quantityToAdd } : i
                 );
             }
-            return [...prev, { ...item, quantity: 1 }];
+            return [...prev, { ...item, quantity: quantityToAdd }];
         });
-        setIsCartOpen(true); // فتح السلة تلقائياً عند الإضافة
+        setIsCartOpen(true);
     };
 
     const removeFromCart = (id: number) => {
@@ -75,6 +76,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
         ));
     };
 
+    const clearCart = () => {
+        setCartItems([]);
+    };
+
     const cartTotal = cartItems.reduce((total, item) => total + (Number(item.price) * item.quantity), 0);
     const cartItemsCount = cartItems.reduce((count, item) => count + item.quantity, 0);
 
@@ -86,6 +91,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
             addToCart,
             removeFromCart,
             updateQuantity,
+            clearCart,
             cartTotal,
             cartItemsCount
         }}>
