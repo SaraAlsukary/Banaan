@@ -1,8 +1,8 @@
 import { Webhook } from 'svix';
 import { headers } from 'next/headers';
 import { WebhookEvent } from '@clerk/nextjs/server';
-import { db } from '@/db'; // قم بتعديل مسار اتصال قاعدة البيانات لديك
-import { users } from '@/db/schema'; // قم بتعديل مسار الـ schema لديك
+import { db } from '@/db'; 
+import { users } from '@/db/schema'; 
 import { eq } from 'drizzle-orm';
 
 export async function POST(req: Request) {
@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     throw new Error('يرجى إضافة CLERK_WEBHOOK_SECRET في ملف .env.local');
   }
 
-  // جلب الهيدرز الخاصة بـ Svix للتحقق من الأمان
+  // جلب الهيدرز الخاصة بـ Svix
   const headerPayload = await headers();
   const svix_id = headerPayload.get('svix-id');
   const svix_timestamp = headerPayload.get('svix-timestamp');
@@ -22,19 +22,20 @@ export async function POST(req: Request) {
     return new Response('خطأ: هيدرز Svix مفقودة', { status: 400 });
   }
 
-  const payload = await req.json();
-  const body = JSON.stringify(payload);
+  // ⚠️ قراءة نص الطلب الخام المباشر (Raw Text) لضمان عدم تغير التوقيع
+  const payload = await req.text();
 
   const wh = new Webhook(SIGNING_SECRET);
   let evt: WebhookEvent;
 
   try {
-    evt = wh.verify(body, {
+    evt = wh.verify(payload, {
       'svix-id': svix_id,
       'svix-timestamp': svix_timestamp,
       'svix-signature': svix_signature,
-    }) as unknown as WebhookEvent;
+    })as unknown as WebhookEvent;
   } catch (err) {
+    console.error('خطأ في التحقق من توقيع Svix:', err);
     return new Response('خطأ في التحقق من التوقيع', { status: 400 });
   }
 
