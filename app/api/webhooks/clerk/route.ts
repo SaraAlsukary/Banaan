@@ -12,6 +12,7 @@ export async function POST(req: Request) {
     return new Response('خطأ في إعدادات السيرفر', { status: 500 });
   }
 
+  // 1. جلب الهيدرز الخاصة بـ Svix
   const headerPayload = await headers();
   const svix_id = headerPayload.get('svix-id');
   const svix_timestamp = headerPayload.get('svix-timestamp');
@@ -22,12 +23,24 @@ export async function POST(req: Request) {
     return new Response('طلب غير مكتمل', { status: 400 });
   }
 
-  const payload = await req.text();
+  // 2. قراءة البيانات وتحويلها لمعيار JSON الموحد
+  let payload: unknown;
+  let body: string;
+
+  try {
+    payload = await req.json();
+    body = JSON.stringify(payload);
+  } catch (err) {
+    console.error('❌ فشل في قراءة محتوى الطلب (JSON):', err);
+    return new Response('محتوى الطلب غير صالح', { status: 400 });
+  }
+
+  // 3. التحقق من التوقيع باستعمال Svix
   const wh = new Webhook(SIGNING_SECRET);
   let evt: WebhookEvent;
 
   try {
-    evt = wh.verify(payload, {
+    evt = wh.verify(body, {
       'svix-id': svix_id,
       'svix-timestamp': svix_timestamp,
       'svix-signature': svix_signature,
@@ -37,11 +50,18 @@ export async function POST(req: Request) {
     return new Response('فشل التحقق من التوقيع', { status: 400 });
   }
 
+  // 4. فحص أمان للمتغير evt قبل قراءة evt.type
+  if (!evt || !evt.type) {
+    console.error('❌ بيانات الحدث مفقودة أو غير صالحة');
+    return new Response('بيانات الحدث غير صالحة', { status: 400 });
+  }
+
   const eventType = evt.type;
 
+  // 5. معالجة أحداث المستخدمين
   if (eventType === 'user.created' || eventType === 'user.updated') {
     const { id, first_name, last_name, email_addresses, image_url } = evt.data;
-    const primaryEmail = email_addresses[0]?.email_address;
+    const primaryEmail = email_addresses?.[0]?.email_address;
     const fullName = `${first_name || ''} ${last_name || ''}`.trim() || 'مستخدم';
 
     if (!primaryEmail) {
