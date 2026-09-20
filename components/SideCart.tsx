@@ -96,7 +96,7 @@ export default function SideCart() {
                                             </div>
                                             <div className="flex justify-between items-center mt-2">
                                                 <span className="font-black text-banan-olive text-sm">
-                                                    {Number(item.price).toLocaleString()} ل.س
+                                                    {Number(item.price).toLocaleString()} $
                                                 </span>
                                                 <div className="flex items-center gap-2 bg-banan-bg rounded-lg p-1 border border-banan-beige/30">
                                                     <button
@@ -125,7 +125,7 @@ export default function SideCart() {
                             <div className="p-4 bg-white border-t border-banan-beige space-y-4">
                                 <div className="flex justify-between items-center text-lg font-bold text-banan-olive">
                                     <span>المجموع الإجمالي:</span>
-                                    <span className="text-xl font-black">{cartTotal.toLocaleString()} ل.س</span>
+                                    <span className="text-xl font-black">{cartTotal.toLocaleString()} $</span>
                                 </div>
                                 <Link
                                     href="/checkout"

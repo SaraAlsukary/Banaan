@@ -14,6 +14,10 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'via.placeholder.com', // في حال استخدام placeholder لاحقاً
       },
+      {
+        protocol: 'https',
+        hostname: 'img.clerk.com',
+      },
     ],
   },
 };

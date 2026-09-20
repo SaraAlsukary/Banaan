@@ -84,19 +84,7 @@ export default function HomePageUI({
     return (
         <div className="bg-banan-bg min-h-screen" dir="rtl">
             {/* شريط حالة المستخدم العلوي */}
-            {isLoggedIn && (
-                <div className="bg-banan-beige/50 backdrop-blur-md px-4 py-2 flex items-center justify-between sticky top-0 z-50">
-                    <div className="flex items-center gap-3">
-                        <UserButton />
-                        <span className="text-banan-olive font-bold">
-                            أهلاً بك، {firstName || "عزيزنا الزائر"}
-                        </span>
-                    </div>
-                    <span className={`text-xs px-3 py-1 rounded-full font-mono ${hasDbUser ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                        {hasDbUser ? "مستخدم مسجل (Neon)" : "متصل بـ (Clerk) فقط"}
-                    </span>
-                </div>
-            )}
+
 
             {/* 1. قسم البداية (Hero Section) */}
             <section className="relative w-full min-h-[85vh] flex items-center justify-center overflow-hidden">

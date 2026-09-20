@@ -41,7 +41,7 @@ export default function CheckoutPage() {
             address: formData.address,
             notes: formData.notes,
             totalAmount: cartTotal,
-            items: cartItems.map((item:any) => ({
+            items: cartItems.map((item: any) => ({
                 id: item.id,
                 name: item.name,
                 price: Number(item.price),
@@ -132,7 +132,7 @@ export default function CheckoutPage() {
                 <div className="mb-8 border-b border-banan-beige pb-4 flex justify-between items-center">
                     <div>
                         <h1 className="text-2xl md:text-3xl font-black text-banan-olive">إتمام الطلب</h1>
-                        <p className="text-gray-600 text-xs md:text-sm">أدخلي معلومات التسليم لإكمال شراء حقيبتك الإبداعية</p>
+                        <p className="text-gray-600 text-xs mt-2 md:text-sm">أدخلي معلومات التسليم  </p>
                     </div>
                     <Link href="/" className="text-sm font-bold text-banan-brown hover:underline flex items-center gap-1">
                         <ArrowRight size={16} /> العودة للتسوق
@@ -248,11 +248,11 @@ export default function CheckoutPage() {
                                         <div className="flex-1 min-w-0">
                                             <h4 className="font-bold text-banan-olive text-xs truncate">{item.name}</h4>
                                             <p className="text-gray-500 text-xs mt-1">
-                                                الكمية: {item.quantity} × {Number(item.price).toLocaleString()} ل.س
+                                                الكمية: {item.quantity} × {Number(item.price).toLocaleString()} $
                                             </p>
                                         </div>
                                         <span className="font-black text-banan-olive text-xs">
-                                            {(Number(item.price) * item.quantity).toLocaleString()} ل.س
+                                            {(Number(item.price) * item.quantity).toLocaleString()} $
                                         </span>
                                     </div>
                                 ))}
@@ -265,7 +265,7 @@ export default function CheckoutPage() {
                                 </div>
                                 <div className="flex justify-between items-center text-base font-black text-banan-olive pt-2 border-t border-gray-100">
                                     <span>المجموع الكلي:</span>
-                                    <span className="text-xl text-banan-brown">{cartTotal.toLocaleString()} ل.س</span>
+                                    <span className="text-xl text-banan-brown">{cartTotal.toLocaleString()} $</span>
                                 </div>
                             </div>
                         </div>
