@@ -1,4 +1,3 @@
-import React from 'react';
 import StatCard from '@/components/admin/StatCard';
 import Link from 'next/link';
 
