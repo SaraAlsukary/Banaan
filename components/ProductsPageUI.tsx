@@ -1,7 +1,7 @@
 "use client";
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation'; // تم إضافة useRouter للتوجيه
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     ShoppingBag,
@@ -16,7 +16,6 @@ import {
 import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
 import { useState, useMemo } from 'react';
-// 1. استدعاء هوك المصادقة (مثال باستخدام Clerk)
 import { useUser } from '@clerk/nextjs'; 
 
 // ==========================================
@@ -34,7 +33,7 @@ export interface ProductType {
     shortDescription: string | null;
     price: string;
     imageUrl: string;
-    subcategories?: any[];
+    subcategories?: SubcategoryType[] | any[];
     productSubcategories?: any[];
 }
 
@@ -49,10 +48,15 @@ function extractProductSubcategories(product: ProductType): SubcategoryType[] {
 
     rawList.forEach((item) => {
         if (!item) return;
+        // التعامل مع مختلف أشكال الإرجاع (أثناء الربط المباشر أو العلاقات Drizzle)
         if (item.subcategory && item.subcategory.id) {
             result.push(item.subcategory);
         } else if (item.id && item.name) {
-            result.push(item);
+            result.push({
+                id: Number(item.id),
+                name: item.name,
+                categoryId: item.categoryId
+            });
         }
     });
 
@@ -67,7 +71,6 @@ export default function ProductsPageUI({
     const { addToCart } = useCart();
     const { toggleWishlist, isInWishlist } = useWishlist();
     
-    // 2. التحقق من حالة تسجيل الدخول
     const { isSignedIn } = useUser(); 
 
     // الحالات (States)
@@ -78,7 +81,6 @@ export default function ProductsPageUI({
     // دالة معالجة الضغط على المفضلة
     const handleWishlistClick = (product: ProductType) => {
         if (!isSignedIn) {
-            // إعادة التوجيه لصفحة تسجيل الدخول إذا لم يكن المستخدم مسجلاً
             router.push('/sign-in'); 
             return;
         }
@@ -92,6 +94,7 @@ export default function ProductsPageUI({
         });
     };
 
+    // استخراج التصنيفات الفرعية المتاحة ديناميكيًا إن لم تُمرر
     const availableSubcategories = useMemo(() => {
         if (subcategoriesList && subcategoriesList.length > 0) {
             return subcategoriesList;
@@ -110,6 +113,7 @@ export default function ProductsPageUI({
         return Array.from(map.values());
     }, [productsList, subcategoriesList]);
 
+    // تصفية المنتجات بناءً على البحث والتصنيف المحدد
     const filteredProducts = useMemo(() => {
         return productsList.filter(product => {
             const matchesSearch = 
@@ -132,11 +136,9 @@ export default function ProductsPageUI({
 
     return (
         <div className="bg-banan-bg min-h-screen pb-20 font-sans" dir="rtl">
-            
             {/* TOP BAR & HEADER */}
             <div className="bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-banan-beige shadow-sm">
                 <div className="container mx-auto px-4 py-4 space-y-3">
-                    
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <Link href="/" className="w-10 h-10 bg-banan-bg rounded-full flex items-center justify-center text-banan-olive hover:bg-banan-olive hover:text-white transition-colors">
@@ -187,6 +189,7 @@ export default function ProductsPageUI({
                         </button>
                     </div>
 
+                    {/* أزرار التصنيفات الأفقية السريعة */}
                     {availableSubcategories.length > 0 && (
                         <div className="flex items-center gap-2 overflow-x-auto pt-1 pb-1 scrollbar-none text-xs sm:text-sm">
                             <button
@@ -218,7 +221,6 @@ export default function ProductsPageUI({
                             })}
                         </div>
                     )}
-
                 </div>
             </div>
 

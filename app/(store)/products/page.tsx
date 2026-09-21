@@ -1,7 +1,7 @@
 // app/products/page.tsx
-import ProductsPageUI, { ProductType } from "@/components/ProductsPageUI";
+import ProductsPageUI, { ProductType, SubcategoryType } from "@/components/ProductsPageUI";
 import { db } from "@/db";
-import { products, productSubcategories } from "@/db/schema";
+import { products, subcategories, productSubcategories } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 export default async function ProductsPage({
@@ -13,46 +13,77 @@ export default async function ProductsPage({
   const resolvedSearchParams = await searchParams;
   const subIdParam = resolvedSearchParams.subId;
 
-  let productsList: any[] = [];
+  // 2. جلب جميع التصنيفات الفرعية المتاحة لعرضها في الفلتر العلوي
+  const allSubcategoriesData = await db.query.subcategories.findMany();
+  const formattedSubcategories: SubcategoryType[] = allSubcategoriesData.map(sub => ({
+    id: sub.id,
+    name: sub.name,
+    categoryId: sub.categoryId ?? undefined
+  }));
 
-  // نحدد الحقول التي نريد إرجاعها لتكون مسطحة (Flat Object) متوافقة مع الواجهة
-  const selectedFields = {
-    id: products.id,
-    name: products.name,
-    shortDescription: products.shortDescription,
-    price: products.price,
-    imageUrl: products.imageUrl,
-  };
+  // 3. جلب المنتجات مع التصنيفات الفرعية الخاصة بكل منتج (With Relations)
+  let rawProducts: any[] = [];
 
-  // 2. التحقق من وجود رقم تصنيف فرعي في الرابط
   if (subIdParam && typeof subIdParam === 'string' && !isNaN(parseInt(subIdParam))) {
     const subcategoryId = parseInt(subIdParam);
-    
-    // استخدام innerJoin للربط بين جدول المنتجات والجدول الوسيط
-    productsList = await db
-      .select(selectedFields)
+
+    // عند الفلترة بـ subId
+    const joinedResults = await db
+      .select({
+        product: products
+      })
       .from(products)
       .innerJoin(
-        productSubcategories, 
+        productSubcategories,
         eq(products.id, productSubcategories.productId)
       )
       .where(eq(productSubcategories.subcategoryId, subcategoryId));
 
+    const productIds = joinedResults.map(r => r.product.id);
+
+    if (productIds.length > 0) {
+      rawProducts = await db.query.products.findMany({
+        where: (productsTable, { inArray }) => inArray(productsTable.id, productIds),
+        with: {
+          subcategories: {
+            with: {
+              subcategory: true
+            }
+          }
+        }
+      });
+    }
   } else {
-    // إذا لم يكن هناك فلتر، نجلب كل المنتجات
-    productsList = await db
-      .select(selectedFields)
-      .from(products);
+    // جلب كافة المنتجات مع علاقات التصنيفات الفرعية
+    rawProducts = await db.query.products.findMany({
+      with: {
+        subcategories: {
+          with: {
+            subcategory: true
+          }
+        }
+      }
+    });
   }
 
-  // 3. تنسيق البيانات (تحويل السعر إلى String لتجنب أخطاء Typescript مع الواجهة)
-  const formattedProducts: ProductType[] = productsList.map(product => ({
-    id: product.id,
-    name: product.name,
-    shortDescription: product.shortDescription,
-    price: product.price.toString(), 
-    imageUrl: product.imageUrl
+  // 4. تنسيق البيانات لتطابق مع واجهة ProductType
+  const formattedProducts: ProductType[] = rawProducts.map((p) => ({
+    id: p.id,
+    name: p.name,
+    shortDescription: p.shortDescription,
+    price: p.price.toString(),
+    imageUrl: p.imageUrl,
+    subcategories: p.subcategories ? p.subcategories.map((s: any) => ({
+      id: s.subcategory.id,
+      name: s.subcategory.name,
+      categoryId: s.subcategory.categoryId
+    })) : []
   }));
 
-  return <ProductsPageUI productsList={formattedProducts} />;
+  return (
+    <ProductsPageUI 
+      productsList={formattedProducts} 
+      subcategoriesList={formattedSubcategories} 
+    />
+  );
 }

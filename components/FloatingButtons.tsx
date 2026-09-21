@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShoppingBag, MessageCircle, Share2, X, Mail } from 'lucide-react';
+import { ShoppingBag, MessageCircle, Share2, X, Mail, ArrowRight } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
 
 // مكون أيقونة إنستغرام مخصص (SVG)
@@ -27,11 +27,23 @@ function Facebook({ size = 22 }: { size?: number }) {
 }
 
 export default function FloatingButtons() {
+    const router = useRouter();
     const [isSocialOpen, setIsSocialOpen] = useState(false);
     const { setIsCartOpen, cartItemsCount } = useCart();
 
     return (
         <div className="fixed bottom-6 right-6 z-[999] flex flex-col gap-4 items-center" dir="rtl">
+
+            {/* زر العودة للخلف */}
+            <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => router.back()}
+                title="الرجوع للوراء"
+                className="w-12 h-12 bg-white text-banan-brown rounded-full flex items-center justify-center shadow-md border border-banan-beige hover:bg-banan-bg transition-colors"
+            >
+                <ArrowRight size={20} />
+            </motion.button>
 
             {/* قائمة وسائل التواصل الاجتماعي والبريد */}
             <div className="relative flex flex-col items-center">
@@ -92,6 +104,7 @@ export default function FloatingButtons() {
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
                     onClick={() => setIsSocialOpen(!isSocialOpen)}
+                    title="تواصل معنا"
                     className="w-12 h-12 bg-white text-banan-brown rounded-full flex items-center justify-center shadow-md border border-banan-beige hover:bg-banan-bg transition-colors"
                 >
                     {isSocialOpen ? <X size={20} /> : <Share2 size={20} />}
@@ -103,6 +116,7 @@ export default function FloatingButtons() {
                 onClick={() => setIsCartOpen(true)}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
+                title="سلة التسوق"
                 className="relative group w-16 h-16 bg-banan-olive text-white rounded-2xl flex items-center justify-center shadow-xl hover:shadow-2xl hover:bg-banan-olive-light transition-all duration-300"
             >
                 <ShoppingBag size={28} />
