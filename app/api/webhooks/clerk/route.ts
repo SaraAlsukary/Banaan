@@ -25,31 +25,39 @@ export async function POST(req: Request) {
 
   // 2. قراءة النص الخام للطلب
   const body = await req.text();
-  console.log('📄 النص الخام المستلم من Clerk:', body);
 
-  // 3. التحقق من توقيع Svix وفك البيانات
+  // 3. التحقق من توقيع Svix
   const wh = new Webhook(SIGNING_SECRET);
-  let evt: WebhookEvent;
 
   try {
-    evt = wh.verify(body, {
+    wh.verify(body, {
       'svix-id': svix_id,
       'svix-timestamp': svix_timestamp,
       'svix-signature': svix_signature,
-    })as unknown as WebhookEvent;
+    });
   } catch (err) {
     console.error('❌ فشل التحقق من توقيع Svix:', err);
     return new Response('فشل التحقق من التوقيع', { status: 400 });
   }
 
-  // 4. قراءة نوع الحدث
-  const eventType = evt.type;
-  console.log(`ℹ️ نوع الحدث المستلم: ${eventType}`);
+  // 4. تحويل النص الخام إلى JSON بضمان تام
+  let evt: WebhookEvent;
+  try {
+    evt = JSON.parse(body) as WebhookEvent;
+  } catch (err) {
+    console.error('❌ فشل تحويل نص البيانات إلى JSON:', err);
+    return new Response('بيانات غير صالحة', { status: 400 });
+  }
 
-  // 5. معالجة أحداث إنشاء أو تحديث المستخدم
+  // 5. قراءة نوع الحدث
+  const eventType = evt.type;
+  console.log(`ℹ️ نوع الحدث المستلم بنجاح: ${eventType}`);
+
+  // 6. معالجة أحداث إنشاء أو تحديث المستخدم
   if (eventType === 'user.created' || eventType === 'user.updated') {
     const { id, first_name, last_name, email_addresses, primary_email_address_id, image_url } = evt.data;
 
+    // استخراج البريد الأساسي
     const primaryEmailObj = email_addresses?.find(
       (email: any) => email.id === primary_email_address_id
     ) || email_addresses?.[0];
@@ -58,12 +66,12 @@ export async function POST(req: Request) {
     const fullName = `${first_name || ''} ${last_name || ''}`.trim() || 'مستخدم';
 
     if (!primaryEmail) {
-      console.error('❌ البريد الإلكتروني مفقود من البيانات');
+      console.error('❌ البريد الإلكتروني مفقود من بيانات Clerk');
       return new Response('البريد الإلكتروني مفقود', { status: 400 });
     }
 
     try {
-      console.log(`⏳ جاري الحفظ في Neon للمستخدم: ${fullName} (${id})...`);
+      console.log(`⏳ جاري حفظ البيانات في Neon للمستخدم: ${fullName} (${id})...`);
 
       await db
         .insert(users)
