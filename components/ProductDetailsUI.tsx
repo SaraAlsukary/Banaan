@@ -5,6 +5,8 @@ import { useState } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { useCart } from "@/context/CartContext";
+import { useWishlist } from "@/context/WishlistContext"; // 1. استيراد hook المفضلة
+import { useUser } from "@clerk/nextjs"; // 2. استيراد hook للتحقق من تسجيل الدخول
 import { 
     ShoppingBag, 
     Check, 
@@ -32,8 +34,16 @@ export default function ProductDetailsUI({ product }: { product: ProductDetailsT
     const [activeImage, setActiveImage] = useState(product.imageUrl);
     const [quantity, setQuantity] = useState(1);
     const [isAdded, setIsAdded] = useState(false);
-    const [isFavorite, setIsFavorite] = useState(false);
+    
+    // سحب الدالة والتحقق من المفضلة من الـ Context
+    const { toggleWishlist, isInWishlist } = useWishlist();
     const { addToCart } = useCart();
+    
+    // التحقق من حالة تسجيل دخول المستخدم عبر Clerk
+    const { isSignedIn } = useUser();
+
+    // معرفة ما إذا كان المنتج حالياً في المفضلة أم لا
+    const isFavorite = isInWishlist(product.id);
 
     const allImages = [
         { id: 0, imageUrl: product.imageUrl },
@@ -53,8 +63,21 @@ export default function ProductDetailsUI({ product }: { product: ProductDetailsT
         setTimeout(() => setIsAdded(false), 2000);
     };
 
-    const toggleFavorite = () => {
-        setIsFavorite((prev) => !prev);
+    const handleToggleFavorite = () => {
+        // إذا لم يكن المستخدم مسجلاً للدخول، يتم التوجيه لصفحة التسجيل أو إظهار تنبيه
+        if (!isSignedIn) {
+            alert("يرجى تسجيل الدخول أولاً لإضافة المنتجات إلى المفضلة");
+            return;
+        }
+
+        // إضافة/إزالة المنتج من المفضلة
+        toggleWishlist({
+            id: product.id,
+            name: product.name,
+            price: product.price,
+            imageUrl: product.imageUrl,
+            shortDescription: product.shortDescription,
+        });
     };
 
     return (
@@ -99,7 +122,7 @@ export default function ProductDetailsUI({ product }: { product: ProductDetailsT
                                     {/* زر إضافة إلى المفضلة */}
                                     <motion.button
                                         whileTap={{ scale: 0.8 }}
-                                        onClick={toggleFavorite}
+                                        onClick={handleToggleFavorite}
                                         className={`absolute top-4 left-4 z-10 p-2.5 rounded-full backdrop-blur-md transition-all duration-300 border shadow-sm ${
                                             isFavorite
                                                 ? "bg-rose-50 text-rose-500 border-rose-200"
