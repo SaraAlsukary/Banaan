@@ -1,10 +1,13 @@
 "use server";
 
-import { db } from "@/db"; // تعديل المسار حسب ملف ربط الداتا بيز لديك
-import { orders, orderItems } from "@/db/schema";
+import { db } from "@/db";
+import { orders, orderItems, users } from "@/db/schema";
+import { currentUser } from "@clerk/nextjs/server";
+import { eq, or } from "drizzle-orm";
 import nodemailer from "nodemailer";
 
 export interface OrderInput {
+    userId?: number;
     customerName: string;
     customerEmail: string;
     phone: string;
@@ -21,20 +24,55 @@ export interface OrderInput {
 
 const transporter = nodemailer.createTransport({
     service: "gmail",
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true,
     auth: {
         user: process.env.GMAIL_USER,
         pass: process.env.GMAIL_APP_PASS,
     },
+    connectionTimeout: 5000,
+    greetingTimeout: 5000,
+    socketTimeout: 5000,
 });
 
 export async function submitOrder(orderData: OrderInput) {
     try {
-        // 1. حفظ الطلب في جدول orders
+        let dbUserId: number | null = null;
+
+        // 1. محاولة جلب المستخدم من Clerk وربطه بقاعدة البيانات
+        try {
+            const clerkUser = await currentUser();
+            if (clerkUser) {
+                const userEmail = clerkUser.emailAddresses?.[0]?.emailAddress;
+
+                const dbUser = await db.query.users.findFirst({
+                    where: userEmail
+                        ? or(
+                            eq(users.clerkId, clerkUser.id),
+                            eq(users.email, userEmail)
+                        )
+                        : eq(users.clerkId, clerkUser.id),
+                });
+
+                if (dbUser) {
+                    dbUserId = dbUser.id;
+                }
+            }
+        } catch (clerkError) {
+            console.error("Clerk user fetch failed:", clerkError);
+        }
+
+        // 2. حفظ الطلب في جدول orders
         const [insertedOrder] = await db
             .insert(orders)
             .values({
+                userId: dbUserId,
                 customerName: orderData.customerName,
                 customerEmail: orderData.customerEmail,
+                phone: orderData.phone,
+                address: orderData.address,
+                notes: orderData.notes || null,
                 totalAmount: orderData.totalAmount.toString(),
                 status: "pending",
             })
@@ -42,7 +80,7 @@ export async function submitOrder(orderData: OrderInput) {
 
         const orderId = insertedOrder.id;
 
-        // 2. حفظ عناصر الطلب في جدول order_items
+        // 3. حفظ عناصر الطلب في order_items
         if (orderData.items && orderData.items.length > 0) {
             const itemsToInsert = orderData.items.map((item) => ({
                 orderId: orderId,
@@ -53,7 +91,7 @@ export async function submitOrder(orderData: OrderInput) {
             await db.insert(orderItems).values(itemsToInsert);
         }
 
-        // بناء قائمة المنتجات بتنسيق HTML للايميل
+        // 4. تجهيز قوالب الإيميل
         const itemsHtmlTable = `
             <table style="width: 100%; border-collapse: collapse; margin-top: 15px; text-align: right;" dir="rtl">
                 <thead>
@@ -66,29 +104,27 @@ export async function submitOrder(orderData: OrderInput) {
                 </thead>
                 <tbody>
                     ${orderData.items
-                        .map(
-                            (item) => `
+                .map(
+                    (item) => `
                         <tr>
                             <td style="padding: 10px; border: 1px solid #ddd; font-weight: bold;">${item.name}</td>
                             <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${item.quantity}</td>
-                            <td style="padding: 10px; border: 1px solid #ddd;">${Number(item.price).toLocaleString()} ل.س</td>
-                            <td style="padding: 10px; border: 1px solid #ddd; font-weight: bold;">${(Number(item.price) * item.quantity).toLocaleString()} ل.س</td>
+                            <td style="padding: 10px; border: 1px solid #ddd;">${Number(item.price).toLocaleString()}$</td>
+                            <td style="padding: 10px; border: 1px solid #ddd; font-weight: bold;">${(Number(item.price) * item.quantity).toLocaleString()}$</td>
                         </tr>
                     `
-                        )
-                        .join("")}
+                )
+                .join("")}
                 </tbody>
             </table>
         `;
 
-        // 3. إيميل الإدارة (وصلك طلب جديد)
         const adminEmailHtml = `
             <div dir="rtl" style="font-family: Arial, sans-serif; background-color: #f9f8f6; padding: 20px; color: #333;">
                 <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; padding: 25px; border: 2px solid #556B2F;">
                     <h2 style="color: #556B2F; border-bottom: 2px solid #C5A059; padding-bottom: 10px; margin-top: 0;">
                         🛍️ طلب جديد رقم #${orderId}
                     </h2>
-                    
                     <h3 style="color: #8B151A; margin-bottom: 5px;">بيانات العميل:</h3>
                     <ul style="list-style: none; padding: 0; line-height: 1.8;">
                         <li><strong>الاسم:</strong> ${orderData.customerName}</li>
@@ -97,18 +133,15 @@ export async function submitOrder(orderData: OrderInput) {
                         <li><strong>العنوان:</strong> ${orderData.address}</li>
                         ${orderData.notes ? `<li><strong>ملاحظات:</strong> ${orderData.notes}</li>` : ""}
                     </ul>
-
                     <h3 style="color: #556B2F; margin-top: 20px;">تفاصيل السلة:</h3>
                     ${itemsHtmlTable}
-
                     <div style="margin-top: 20px; padding: 15px; background-color: #f2efe9; border-radius: 8px; text-align: left;">
-                        <span style="font-size: 18px; font-weight: bold; color: #556B2F;">المجموع الإجمالي: ${orderData.totalAmount.toLocaleString()} ل.س</span>
+                        <span style="font-size: 18px; font-weight: bold; color: #556B2F;">المجموع الإجمالي: ${orderData.totalAmount.toLocaleString()} $</span>
                     </div>
                 </div>
             </div>
         `;
 
-        // 4. إيميل العميل (تأكيد الطلب)
         const customerEmailHtml = `
             <div dir="rtl" style="font-family: Arial, sans-serif; background-color: #f9f8f6; padding: 20px; color: #333;">
                 <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; padding: 25px; border: 1px solid #e0dbd1;">
@@ -116,46 +149,43 @@ export async function submitOrder(orderData: OrderInput) {
                         <h1 style="color: #556B2F; margin: 0; font-size: 28px;">متجر بَنان 🌸</h1>
                         <p style="color: #777; font-size: 14px;">اصنعي، استمتعي، وشاركي إبداعك</p>
                     </div>
-
                     <p style="font-size: 16px; line-height: 1.6;">
                         أهلاً <strong>${orderData.customerName}</strong>،<br />
-                        شكراً لطلبك من متجر <strong>بَنان</strong>! تم استلام طلبك رقم <strong>#${orderId}</strong> بنجاح ونحن نعمل حالياً على تجهيز حقيبتك الإبداعية.
+                        شكراً لطلبك من متجر <strong>بَنان</strong>! تم استلام طلبك رقم <strong>#${orderId}</strong> بنجاح.
                     </p>
-
                     <h3 style="color: #556B2F; border-bottom: 1px solid #ddd; padding-bottom: 8px;">ملخص الطلب:</h3>
                     ${itemsHtmlTable}
-
                     <div style="margin-top: 20px; padding: 15px; background-color: #f8f6f0; border-radius: 8px; font-size: 16px; font-weight: bold; color: #556B2F;">
-                        الإجمالي الكلي: ${orderData.totalAmount.toLocaleString()} ل.س
-                    </div>
-
-                    <div style="margin-top: 25px; border-top: 1px solid #eee; pt-15; font-size: 13px; color: #666; text-align: center; line-height: 1.6;">
-                        <p>سنقوم بالتواصل معك عبر الواتساب على الرقم <strong>${orderData.phone}</strong> لتأكيد موعد التوصيل.</p>
-                        <p>لأي استفسار، يمكنك التواصل معنا عبر الواتساب: 0992796124</p>
+                        الإجمالي الكلي: ${orderData.totalAmount.toLocaleString()} $
                     </div>
                 </div>
             </div>
         `;
 
-        // إرسال الإيميلات بالتوازي
-        await Promise.all([
-            transporter.sendMail({
-                from: `"متجر بنان" <${process.env.GMAIL_USER}>`,
-                to: process.env.GMAIL_USER,
-                subject: `🛍️ طلب جديد #${orderId} من: ${orderData.customerName}`,
-                html: adminEmailHtml,
-            }),
-            transporter.sendMail({
-                from: `"متجر بنان" <${process.env.GMAIL_USER}>`,
-                to: orderData.customerEmail,
-                subject: `تم استلام طلبك بنجاح #${orderId} | متجر بنان 🌸`,
-                html: customerEmailHtml,
-            }),
-        ]);
+        // 5. إرسال البريد بشكل غير متزامن (مستقل عن العودة بالنتيجة)
+        if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASS) {
+            Promise.all([
+                transporter.sendMail({
+                    from: `"متجر بنان" <${process.env.GMAIL_USER}>`,
+                    to: process.env.GMAIL_USER,
+                    subject: `🛍️ طلب جديد #${orderId} من: ${orderData.customerName}`,
+                    html: adminEmailHtml,
+                }),
+                transporter.sendMail({
+                    from: `"متجر بنان" <${process.env.GMAIL_USER}>`,
+                    to: orderData.customerEmail,
+                    subject: `تم استلام طلبك بنجاح #${orderId} | متجر بنان 🌸`,
+                    html: customerEmailHtml,
+                }),
+            ]).catch((emailError) => {
+                console.error("Email sending failed:", emailError);
+            });
+        }
 
         return { success: true, orderId };
     } catch (error) {
-        console.error("Order process error:", error);
+        // طباعة تفاصيل الخطأ في الـ Terminal للوقوف على السبب بدقة
+        console.error("تفاصيل خطأ إنشاء الطلب:", error);
         return { success: false, error: "حدث خطأ أثناء إرسال الطلب، يرجى المحاولة لاحقاً." };
     }
 }

@@ -303,7 +303,7 @@ export default function HomePageUI({
                                 <Phone size={24} />
                             </div>
                             <h4 className="font-bold">رقم الهاتف / واتساب</h4>
-                            <p className="text-sm dir-ltr opacity-80">+963 992 796 124</p>
+                            <p dir='ltr' className="text-sm ltr opacity-80">+963 992 796 124</p>
                         </div>
 
                         <div className="bg-white rounded-2xl p-6 shadow-sm flex flex-col items-center text-center space-y-3">
@@ -311,7 +311,7 @@ export default function HomePageUI({
                                 <Instagram size={24} />
                             </div>
                             <h4 className="font-bold">إنستغرام</h4>
-                            <a href="https://www.instagram.com/banan.kits" target="_blank" rel="noreferrer" className="text-sm opacity-80 hover:underline">
+                            <a dir='ltr' href="https://www.instagram.com/banan.kits" target="_blank" rel="noreferrer" className="text-sm opacity-80 hover:underline">
                                 @banan.kits
                             </a>
                         </div>
@@ -321,7 +321,7 @@ export default function HomePageUI({
                                 <MapPin size={24} />
                             </div>
                             <h4 className="font-bold">العنوان</h4>
-                            <p className="text-sm opacity-80">سوريا، حلب</p>
+                            <p dir='ltr' className="text-sm opacity-80"> حلب، سوريا</p>
                         </div>
 
                         <div className="bg-white rounded-2xl p-6 shadow-sm flex flex-col items-center text-center space-y-3">

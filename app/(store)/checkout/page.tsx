@@ -7,6 +7,7 @@ import { CheckCircle2, ShoppingBag, ArrowRight, Loader2, Send } from "lucide-rea
 
 import { useCart } from "@/context/CartContext";
 import { submitOrder } from "@/app/actions/order";
+
 export default function CheckoutPage() {
     const { cartItems, cartTotal, clearCart } = useCart();
 
@@ -34,20 +35,34 @@ export default function CheckoutPage() {
         setIsSubmitting(true);
         setErrorMessage("");
 
-        const result = await submitOrder({
-            customerName: formData.name,
-            customerEmail: formData.email,
-            phone: formData.phone,
-            address: formData.address,
-            notes: formData.notes,
-            totalAmount: cartTotal,
-            items: cartItems.map((item: any) => ({
-                id: item.id,
-                name: item.name,
-                price: Number(item.price),
-                quantity: item.quantity,
-            })),
+        // 1. تنظيف وتأمين بيانات العناصر الممررة للسيرفر
+        const formattedItems = cartItems.map((item: any) => {
+            const rawId = item.id ?? item.productId;
+            const parsedId = parseInt(rawId, 10);
+            const parsedPrice = parseFloat(item.price);
+
+            return {
+                id: isNaN(parsedId) ? 0 : parsedId, // التأكد من تحويل الـ ID إلى رقم صحيح
+                name: item.name || "منتج بدون اسم",
+                price: isNaN(parsedPrice) ? 0 : parsedPrice, // التأكد من عدم إرسال NaN
+                quantity: Number(item.quantity) || 1,
+            };
         });
+
+        const payload = {
+            customerName: formData.name.trim(),
+            customerEmail: formData.email.trim(),
+            phone: formData.phone.trim(),
+            address: formData.address.trim(),
+            notes: formData.notes?.trim() || "",
+            totalAmount: Number(cartTotal) || 0,
+            items: formattedItems,
+        };
+
+        // طباعة البيانات في Console المتصفح لمعاينتها قبل الإرسال
+        console.log("بيانات الطلب المرسلة للـ Server Action:", payload);
+
+        const result = await submitOrder(payload);
 
         setIsSubmitting(false);
 
@@ -115,7 +130,7 @@ export default function CheckoutPage() {
                     <p className="text-gray-600 text-sm">لم تقمي بإضافة أي منتجات للسلة بعد لتتمكي من إتمام الطلب.</p>
                     <Link
                         href="/products"
-                        className="inline-flex items-center gap-2 py-3 px-6 bg-banan-olive text-white font-bold rounded-xl hover:bg-banan-brown transition shadow-sm"
+                        className="inline-flex items-center gap-2 py-3 px-6 bg-banan-olive text-white font-bold rounded-xl hover:bg-banan-brown transition shadow-md"
                     >
                         <span>تصفحي المنتجات</span>
                         <ArrowRight size={16} />
@@ -132,7 +147,7 @@ export default function CheckoutPage() {
                 <div className="mb-8 border-b border-banan-beige pb-4 flex justify-between items-center">
                     <div>
                         <h1 className="text-2xl md:text-3xl font-black text-banan-olive">إتمام الطلب</h1>
-                        <p className="text-gray-600 text-xs mt-2 md:text-sm">أدخلي معلومات التسليم  </p>
+                        <p className="text-gray-600 text-xs mt-2 md:text-sm">أدخلي معلومات التسليم</p>
                     </div>
                     <Link href="/" className="text-sm font-bold text-banan-brown hover:underline flex items-center gap-1">
                         <ArrowRight size={16} /> العودة للتسوق
@@ -265,7 +280,7 @@ export default function CheckoutPage() {
                                 </div>
                                 <div className="flex justify-between items-center text-base font-black text-banan-olive pt-2 border-t border-gray-100">
                                     <span>المجموع الكلي:</span>
-                                    <span className="text-xl text-banan-brown">{cartTotal.toLocaleString()} $</span>
+                                    <span className="text-xl text-banan-brown">{Number(cartTotal).toLocaleString()} $</span>
                                 </div>
                             </div>
                         </div>

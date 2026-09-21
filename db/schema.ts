@@ -85,12 +85,14 @@ export const productSubcategories = pgTable(
 // ==========================================
 export const orders = pgTable("orders", {
   id: serial("id").primaryKey(),
-  // إذا كان زائرًا يترك الحقل null، وإذا كان مسجلاً يرتبط بحسابه
   userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
   customerName: varchar("customer_name", { length: 255 }).notNull(),
   customerEmail: varchar("customer_email", { length: 255 }).notNull(),
+  phone: varchar("phone", { length: 50 }).notNull(), // إضافة رقم الهاتف
+  address: text("address").notNull(),              // إضافة العنوان
+  notes: text("notes"),                            // إضافة الملاحظات
   totalAmount: numeric("total_amount", { precision: 10, scale: 2 }).notNull(),
-  status: varchar("status", { length: 50 }).default("pending").notNull(), // pending, completed, cancelled
+  status: varchar("status", { length: 50 }).default("pending").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
