@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     return new Response('خطأ في إعدادات السيرفر', { status: 500 });
   }
 
-  // 1. جلب الهيدرز الخاصة بـ Svix
+  // 1. قراءة الهيدرز من Svix
   const headerPayload = await headers();
   const svix_id = headerPayload.get('svix-id');
   const svix_timestamp = headerPayload.get('svix-timestamp');
@@ -24,51 +24,31 @@ export async function POST(req: Request) {
   }
 
   // 2. قراءة النص الخام للطلب
-  let body: string;
-  try {
-    body = await req.text();
-  } catch (err) {
-    console.error('❌ فشل قراءة محتوى الطلب النصي:', err);
-    return new Response('فشل قراءة محتوى الطلب', { status: 400 });
-  }
+  const body = await req.text();
+  console.log('📄 النص الخام المستلم من Clerk:', body);
 
-  // 3. التحقق من توقيع Svix
+  // 3. التحقق من توقيع Svix وفك البيانات
   const wh = new Webhook(SIGNING_SECRET);
-  let rawEvt: any;
+  let evt: WebhookEvent;
 
   try {
-    rawEvt = wh.verify(body, {
+    evt = wh.verify(body, {
       'svix-id': svix_id,
       'svix-timestamp': svix_timestamp,
       'svix-signature': svix_signature,
-    });
+    })as unknown as WebhookEvent;
   } catch (err) {
     console.error('❌ فشل التحقق من توقيع Svix:', err);
     return new Response('فشل التحقق من التوقيع', { status: 400 });
   }
 
-  // 4. ضمان تحويل النتيجة إلى كائن JSON مقروء
-  let evt: WebhookEvent;
-  try {
-    evt = typeof rawEvt === 'string' ? JSON.parse(rawEvt) : rawEvt;
-  } catch (e) {
-    console.error('❌ فشل تحليل كائن JSON:', e);
-    return new Response('محتوى الطلب غير صالح', { status: 400 });
-  }
-
-  // استخراج نوع الحدث بالتحقق من كافة التركيبات المحتملة
-  const eventType = evt?.type || (evt as any)?.event_type;
-
-  if (!eventType) {
-    console.log('⚠️ وصل طلب بدون type. محتوى البيانات المفككة:', JSON.stringify(evt));
-    return new Response('تم استلام الطلب بدون نوع حدث', { status: 200 });
-  }
-
-  console.log(`ℹ️ نوع الحدث المستلم بوضوح: ${eventType}`);
+  // 4. قراءة نوع الحدث
+  const eventType = evt.type;
+  console.log(`ℹ️ نوع الحدث المستلم: ${eventType}`);
 
   // 5. معالجة أحداث إنشاء أو تحديث المستخدم
   if (eventType === 'user.created' || eventType === 'user.updated') {
-    const { id, first_name, last_name, email_addresses, primary_email_address_id, image_url } = evt.data as any;
+    const { id, first_name, last_name, email_addresses, primary_email_address_id, image_url } = evt.data;
 
     const primaryEmailObj = email_addresses?.find(
       (email: any) => email.id === primary_email_address_id
@@ -78,17 +58,17 @@ export async function POST(req: Request) {
     const fullName = `${first_name || ''} ${last_name || ''}`.trim() || 'مستخدم';
 
     if (!primaryEmail) {
-      console.error('❌ البريد الإلكتروني مفقود من بيانات المستخدم');
+      console.error('❌ البريد الإلكتروني مفقود من البيانات');
       return new Response('البريد الإلكتروني مفقود', { status: 400 });
     }
 
     try {
-      console.log(`⏳ جاري محاولة الحفظ في Neon للمستخدم: ${fullName} (${id})...`);
+      console.log(`⏳ جاري الحفظ في Neon للمستخدم: ${fullName} (${id})...`);
 
       await db
         .insert(users)
         .values({
-          clerkId: id as any,
+          clerkId: id,
           name: fullName,
           email: primaryEmail,
           imageUrl: image_url || null,
@@ -114,6 +94,5 @@ export async function POST(req: Request) {
     }
   }
 
-  console.log(`⚠️ تم تجاهل الحدث (${eventType}) لأنه ليس user.created أو user.updated`);
   return new Response(`تم استلام الحدث وتجاهله: ${eventType}`, { status: 200 });
 }
