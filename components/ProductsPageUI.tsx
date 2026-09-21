@@ -1,6 +1,7 @@
 "use client";
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation'; // تم إضافة useRouter للتوجيه
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     ShoppingBag,
@@ -15,6 +16,8 @@ import {
 import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
 import { useState, useMemo } from 'react';
+// 1. استدعاء هوك المصادقة (مثال باستخدام Clerk)
+import { useUser } from '@clerk/nextjs'; 
 
 // ==========================================
 // الهياكل المرنة للتصنيفات والمنتجات
@@ -31,7 +34,6 @@ export interface ProductType {
     shortDescription: string | null;
     price: string;
     imageUrl: string;
-    // تدعم مختلف تسميات الاستعلام من قاعدة البيانات
     subcategories?: any[];
     productSubcategories?: any[];
 }
@@ -41,21 +43,15 @@ interface ProductsPageUIProps {
     subcategoriesList?: SubcategoryType[];
 }
 
-/**
- * دالة مساعدة لاستخراج التصنيفات الفرعية للمنتج بغض النظر عن طريقة إرجاعها من الباك إند
- */
 function extractProductSubcategories(product: ProductType): SubcategoryType[] {
     const rawList = product.subcategories || product.productSubcategories || [];
     const result: SubcategoryType[] = [];
 
     rawList.forEach((item) => {
         if (!item) return;
-        // حالة جدول الربط: { subcategory: { id, name } }
         if (item.subcategory && item.subcategory.id) {
             result.push(item.subcategory);
-        }
-        // حالة الكائن المباشر: { id, name }
-        else if (item.id && item.name) {
+        } else if (item.id && item.name) {
             result.push(item);
         }
     });
@@ -67,15 +63,35 @@ export default function ProductsPageUI({
     productsList = [], 
     subcategoriesList = [] 
 }: ProductsPageUIProps) {
+    const router = useRouter();
     const { addToCart } = useCart();
     const { toggleWishlist, isInWishlist } = useWishlist();
     
+    // 2. التحقق من حالة تسجيل الدخول
+    const { isSignedIn } = useUser(); 
+
     // الحالات (States)
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<number | "all">("all");
     const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
 
-    // 1. تجميع واستخراج كل التصنيفات الفرعية المتاحة
+    // دالة معالجة الضغط على المفضلة
+    const handleWishlistClick = (product: ProductType) => {
+        if (!isSignedIn) {
+            // إعادة التوجيه لصفحة تسجيل الدخول إذا لم يكن المستخدم مسجلاً
+            router.push('/sign-in'); 
+            return;
+        }
+
+        toggleWishlist({
+            id: product.id,
+            name: product.name,
+            price: product.price,
+            imageUrl: product.imageUrl,
+            shortDescription: product.shortDescription
+        });
+    };
+
     const availableSubcategories = useMemo(() => {
         if (subcategoriesList && subcategoriesList.length > 0) {
             return subcategoriesList;
@@ -94,15 +110,12 @@ export default function ProductsPageUI({
         return Array.from(map.values());
     }, [productsList, subcategoriesList]);
 
-    // 2. تصفية المنتجات بناءً على البحث والتصنيف المحدد
     const filteredProducts = useMemo(() => {
         return productsList.filter(product => {
-            // أ) فلتر البحث النصي
             const matchesSearch = 
                 product.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                 (product.shortDescription && product.shortDescription.toLowerCase().includes(searchQuery.toLowerCase()));
 
-            // ب) فلتر التصنيف الفرعي
             const productSubs = extractProductSubcategories(product);
             const matchesCategory = 
                 selectedSubcategoryId === "all" || 
@@ -112,7 +125,6 @@ export default function ProductsPageUI({
         });
     }, [productsList, searchQuery, selectedSubcategoryId]);
 
-    // إعادة ضبط الفلاتر
     const handleResetFilters = () => {
         setSearchQuery("");
         setSelectedSubcategoryId("all");
@@ -121,11 +133,10 @@ export default function ProductsPageUI({
     return (
         <div className="bg-banan-bg min-h-screen pb-20 font-sans" dir="rtl">
             
-            {/* ==================== TOP BAR & HEADER ==================== */}
+            {/* TOP BAR & HEADER */}
             <div className="bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-banan-beige shadow-sm">
                 <div className="container mx-auto px-4 py-4 space-y-3">
                     
-                    {/* العناوين وعدد النتائج */}
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <Link href="/" className="w-10 h-10 bg-banan-bg rounded-full flex items-center justify-center text-banan-olive hover:bg-banan-olive hover:text-white transition-colors">
@@ -138,7 +149,6 @@ export default function ProductsPageUI({
                         </span>
                     </div>
 
-                    {/* شريط البحث وزر لوحة التصفية */}
                     <div className="flex gap-2">
                         <div className="relative flex-grow">
                             <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-gray-400">
@@ -161,7 +171,6 @@ export default function ProductsPageUI({
                             )}
                         </div>
 
-                        {/* زر فتح لوحة الفلترة */}
                         <button 
                             onClick={() => setIsFilterPanelOpen(!isFilterPanelOpen)}
                             className={`p-3 rounded-2xl border transition-all flex items-center justify-center relative ${
@@ -178,7 +187,6 @@ export default function ProductsPageUI({
                         </button>
                     </div>
 
-                    {/* شريط التصنيفات الأفقي السريع (Chips) */}
                     {availableSubcategories.length > 0 && (
                         <div className="flex items-center gap-2 overflow-x-auto pt-1 pb-1 scrollbar-none text-xs sm:text-sm">
                             <button
@@ -214,7 +222,7 @@ export default function ProductsPageUI({
                 </div>
             </div>
 
-            {/* ==================== FILTER PANEL DROPDOWN ==================== */}
+            {/* FILTER PANEL DROPDOWN */}
             <AnimatePresence>
                 {isFilterPanelOpen && (
                     <motion.div
@@ -281,7 +289,7 @@ export default function ProductsPageUI({
                 )}
             </AnimatePresence>
 
-            {/* ==================== PRODUCTS GRID ==================== */}
+            {/* PRODUCTS GRID */}
             <section className="container mx-auto px-4 py-8">
                 {filteredProducts.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-20 text-center text-banan-olive bg-white/40 rounded-3xl border border-dashed border-banan-beige p-8">
@@ -313,21 +321,21 @@ export default function ProductsPageUI({
                                     key={product.id} 
                                     className="bg-white rounded-[2rem] p-4 shadow-sm border border-banan-beige/50 relative group flex flex-col h-full"
                                 >
-                                    {/* زر المفضلة التفاعلي */}
+                                    {/* زر المفضلة المشروط بتسجيل الدخول */}
                                     <button 
-                                        onClick={() => toggleWishlist({
-                                            id: product.id,
-                                            name: product.name,
-                                            price: product.price,
-                                            imageUrl: product.imageUrl,
-                                            shortDescription: product.shortDescription
-                                        })}
+                                        onClick={() => handleWishlistClick(product)}
                                         className={`absolute top-6 left-6 p-2.5 rounded-full shadow-sm z-10 transition-all ${
                                             isFav 
                                                 ? "bg-red-50 text-red-500 scale-110" 
                                                 : "bg-white/90 backdrop-blur text-gray-400 hover:text-red-500 hover:scale-110"
                                         }`}
-                                        title={isFav ? "إزالة من المفضلة" : "إضافة إلى المفضلة"}
+                                        title={
+                                            !isSignedIn 
+                                                ? "سجلي دخولك لإضافة المنتج للمفضلة" 
+                                                : isFav 
+                                                ? "إزالة من المفضلة" 
+                                                : "إضافة إلى المفضلة"
+                                        }
                                     >
                                         <Heart size={18} fill={isFav ? "currentColor" : "none"} />
                                     </button>
@@ -345,8 +353,6 @@ export default function ProductsPageUI({
 
                                     {/* تفاصيل المنتج */}
                                     <div className="flex flex-col flex-grow px-2">
-                                        
-                                        {/* شارات التصنيفات الفرعية */}
                                         {productSubs.length > 0 && (
                                             <div className="flex flex-wrap gap-1 mb-2">
                                                 {productSubs.map((sub) => (

@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { UserButton } from "@clerk/nextjs";
+import { useRouter } from 'next/navigation'; // تم إضافة useRouter للتوجيه
+import { UserButton, useUser } from "@clerk/nextjs"; // استدعاء useUser للتحقق من الجلسة
 import { motion } from 'framer-motion';
 import {
     ShoppingBag,
@@ -16,15 +17,16 @@ import {
     Phone,
     MapPin,
     Clock,
-    // Instagram
 } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
+import { useWishlist } from '@/context/WishlistContext'; // استدعاء سياق المفضلة
 
 export interface CategoryItem {
     id: number;
     name: string;
     imageUrl: string | null;
 }
+
 // مكون أيقونة إنستغرام مخصص (SVG)
 function Instagram({ size = 22 }: { size?: number }) {
     return (
@@ -35,6 +37,7 @@ function Instagram({ size = 22 }: { size?: number }) {
         </svg>
     );
 }
+
 export interface ProductItem {
     id: number;
     name: string;
@@ -58,6 +61,10 @@ export default function HomePageUI({
     categoriesList = [],
     bestsellersList = []
 }: HomePageUIProps) {
+    const router = useRouter();
+    const { addToCart } = useCart();
+    const { toggleWishlist, isInWishlist } = useWishlist();
+    const { isSignedIn } = useUser(); // للتحقق من تسجيل الدخول
 
     // بيانات افتراضية للتصنيفات في حال عدم توفرها
     const defaultCategories: CategoryItem[] = [
@@ -78,13 +85,28 @@ export default function HomePageUI({
 
     const displayCategories = categoriesList.length > 0 ? categoriesList : defaultCategories;
     const displayProducts = bestsellersList.length > 0 ? bestsellersList : defaultProducts;
-    const { addToCart } = useCart();
     const bgColors = ['bg-rose-100', 'bg-green-100', 'bg-orange-100', 'bg-red-100', 'bg-purple-100'];
+
+    // دالة معالجة إضافة/إزالة المنتج من المفضلة
+    const handleWishlistClick = (product: ProductItem) => {
+        // نتحقق سواء عبر isSignedIn الخاصة بـ Clerk أو خاصية isLoggedIn الممررة
+        const userIsAuthenticated = isSignedIn ?? isLoggedIn;
+
+        if (!userIsAuthenticated) {
+            router.push('/sign-in');
+            return;
+        }
+
+        toggleWishlist({
+            id: product.id,
+            name: product.name,
+            price: product.price,
+            imageUrl: product.imageUrl,
+        });
+    };
 
     return (
         <div className="bg-banan-bg min-h-screen" dir="rtl">
-            {/* شريط حالة المستخدم العلوي */}
-
 
             {/* 1. قسم البداية (Hero Section) */}
             <section className="relative w-full min-h-[85vh] flex items-center justify-center overflow-hidden">
@@ -139,19 +161,6 @@ export default function HomePageUI({
                         >
                             تسوق الآن <ArrowLeft size={24} />
                         </Link>
-
-                        {/* <div className="flex items-center gap-4 bg-white/80 backdrop-blur-md px-6 py-3 rounded-full shadow-lg">
-                            <div className="flex -space-x-4 space-x-reverse">
-                                {[1, 2, 3, 4].map((i) => (
-                                    <div key={i} className="w-12 h-12 rounded-full bg-gray-200 border-2 border-white overflow-hidden shadow-sm relative">
-                                        <img src={`https://i.pravatar.cc/150?img=${i + 10}`} alt="Customer" className="w-full h-full object-cover" />
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="text-base font-bold text-banan-olive text-right">
-                                +1500 <br /><span className="text-sm font-normal opacity-90">عميلة سعيدة</span>
-                            </div>
-                        </div> */}
                     </motion.div>
                 </div>
             </section>
@@ -177,7 +186,7 @@ export default function HomePageUI({
                 </div>
             </section>
 
-            {/* 3. قسم التصنيفات الأساسية (ديناميكي) */}
+            {/* 3. قسم التصنيفات الأساسية */}
             <section className="container mx-auto px-4 py-12">
                 <div className="flex justify-between items-end mb-8">
                     <h2 className="text-2xl font-bold flex items-center gap-2 text-banan-olive">
@@ -207,58 +216,77 @@ export default function HomePageUI({
                 </div>
             </section>
 
-            {/* 4. الأكثر مبيعاً (ديناميكي) */}
+            {/* 4. الأكثر مبيعاً */}
             <section className="container mx-auto px-4 py-12">
                 <h2 className="text-2xl font-bold flex items-center gap-2 mb-8 text-banan-olive">
                     🤍 الأكثر مبيعاً
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-                    {displayProducts.map((product) => (
-                        <motion.div whileHover={{ y: -5 }} key={product.id} className="bg-white rounded-3xl p-3 shadow-sm border border-gray-50 relative group flex flex-col justify-between">
-                            {product.tag && (
-                                <span className="absolute top-5 right-5 bg-banan-brown text-white text-xs px-2 py-1 rounded-full z-10">
-                                    {product.tag}
-                                </span>
-                            )}
-                            <button className="absolute top-5 left-5 bg-white p-2 rounded-full shadow hover:text-red-500 z-10 transition-colors">
-                                <Heart size={16} />
-                            </button>
+                    {displayProducts.map((product) => {
+                        const isFav = isInWishlist(product.id);
+                        const userIsAuthenticated = isSignedIn ?? isLoggedIn;
 
-                            <div>
-                                <Link href={`/products/${product.id}`}>
-                                    <div className="aspect-square bg-gray-50 rounded-2xl mb-4 overflow-hidden relative cursor-pointer">
-                                        <img
-                                            src={product.imageUrl}
-                                            alt={product.name}
-                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                        />
-                                    </div>
-                                </Link>
+                        return (
+                            <motion.div whileHover={{ y: -5 }} key={product.id} className="bg-white rounded-3xl p-3 shadow-sm border border-gray-50 relative group flex flex-col justify-between">
+                                {product.tag && (
+                                    <span className="absolute top-5 right-5 bg-banan-brown text-white text-xs px-2 py-1 rounded-full z-10">
+                                        {product.tag}
+                                    </span>
+                                )}
 
-                                <div className="px-2 pb-2">
-                                    <Link href={`/products/${product.id}`}>
-                                        <h3 className="font-bold text-banan-olive mb-2 hover:underline cursor-pointer">{product.name}</h3>
-                                    </Link>
-                                </div>
-                            </div>
-
-                            <div className="px-2 pb-2 flex justify-between items-center mt-2">
-                                <span className="font-black text-lg text-banan-olive">${product.price}</span>
+                                {/* زر المفضلة المشروط بتسجيل الدخول */}
                                 <button
-                                    // ربط الزر بدالة الإضافة
-                                    onClick={() => addToCart({
-                                        id: product.id,
-                                        name: product.name,
-                                        price: product.price,
-                                        imageUrl: product.imageUrl
-                                    })}
-                                    className="bg-banan-bg p-2 rounded-xl text-banan-olive hover:bg-banan-olive-light hover:text-white transition-colors"
+                                    onClick={() => handleWishlistClick(product)}
+                                    className={`absolute top-5 left-5 p-2 rounded-full shadow z-10 transition-all ${isFav
+                                            ? "bg-red-50 text-red-500"
+                                            : "bg-white text-gray-400 hover:text-red-500"
+                                        }`}
+                                    title={
+                                        !userIsAuthenticated
+                                            ? "سجلي دخولك لإضافة المنتج للمفضلة"
+                                            : isFav
+                                                ? "إزالة من المفضلة"
+                                                : "إضافة إلى المفضلة"
+                                    }
                                 >
-                                    <ShoppingBag size={18} />
+                                    <Heart size={16} fill={isFav ? "currentColor" : "none"} />
                                 </button>
-                            </div>
-                        </motion.div>
-                    ))}
+
+                                <div>
+                                    <Link href={`/products/${product.id}`}>
+                                        <div className="aspect-square bg-gray-50 rounded-2xl mb-4 overflow-hidden relative cursor-pointer">
+                                            <img
+                                                src={product.imageUrl}
+                                                alt={product.name}
+                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                            />
+                                        </div>
+                                    </Link>
+
+                                    <div className="px-2 pb-2">
+                                        <Link href={`/products/${product.id}`}>
+                                            <h3 className="font-bold text-banan-olive mb-2 hover:underline cursor-pointer">{product.name}</h3>
+                                        </Link>
+                                    </div>
+                                </div>
+
+                                <div className="px-2 pb-2 flex justify-between items-center mt-2">
+                                    <span className="font-black text-lg text-banan-olive">${product.price}</span>
+                                    <button
+                                        onClick={() => addToCart({
+                                            id: product.id,
+                                            name: product.name,
+                                            price: product.price,
+                                            imageUrl: product.imageUrl
+                                        })}
+                                        className="bg-banan-bg p-2 rounded-xl text-banan-olive hover:bg-banan-olive-light hover:text-white transition-colors"
+                                    >
+                                        <ShoppingBag size={18} />
+                                    </button>
+                                </div>
+                            </motion.div>
+                        );
+                    })}
                 </div>
             </section>
 
@@ -275,7 +303,7 @@ export default function HomePageUI({
                                 <Phone size={24} />
                             </div>
                             <h4 className="font-bold">رقم الهاتف / واتساب</h4>
-                            <p className="text-sm dir-ltr opacity-80">+963 9XX XXX XXX</p>
+                            <p className="text-sm dir-ltr opacity-80">+963 992 796 124</p>
                         </div>
 
                         <div className="bg-white rounded-2xl p-6 shadow-sm flex flex-col items-center text-center space-y-3">
@@ -283,8 +311,8 @@ export default function HomePageUI({
                                 <Instagram size={24} />
                             </div>
                             <h4 className="font-bold">إنستغرام</h4>
-                            <a href="https://instagram.com" target="_blank" rel="noreferrer" className="text-sm opacity-80 hover:underline">
-                                @banaan_store
+                            <a href="https://www.instagram.com/banan.kits" target="_blank" rel="noreferrer" className="text-sm opacity-80 hover:underline">
+                                @banan.kits
                             </a>
                         </div>
 
