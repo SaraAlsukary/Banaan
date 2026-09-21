@@ -176,28 +176,19 @@ export default function UserProfileUI({
 
   // دالة التعامل مع حذف الحساب
   const handleDeleteAccount = async () => {
-    try {
-      setIsDeleting(true);
-
-      // 1. تنظيف بيانات المستخدم من قاعدة البيانات الخاصة بك إن وجدت
-      if (onDeleteAccount) {
-        await onDeleteAccount();
-      }
-
-      // 2. حذف حساب المستخدم من Clerk
-      if (clerkUser) {
-        await clerkUser.delete();
-      }
-
-      // 3. إنهاء الجلسة وإعادة التوجيه للرئيسية
-      await signOut({ redirectUrl: "/" });
-    } catch (error) {
-      console.error("فشل حذف الحساب:", error);
-      alert("حدث خطأ أثناء حذف الحساب، يرجى المحاولة لاحقاً.");
-      setIsDeleting(false);
-      setShowDeleteModal(false);
-    }
-  };
+  try {
+    setIsDeleting(true);
+    if (onDeleteAccount) await onDeleteAccount();
+    if (clerkUser) await clerkUser.delete();
+    await signOut({ redirectUrl: "/" });
+  } catch (error) {
+    // قم بطباعة الخطأ لمعرفة التفاصيل الدقيقة في Console المتصفح
+    console.error("تفاصيل خطأ الحذف:", error);
+    alert("حدث خطأ أثناء حذف الحساب، يرجى المحاولة لاحقاً.");
+  } finally {
+    setIsDeleting(false);
+  }
+};
 
   const getStatusBadge = (status: string) => {
     switch (status.toLowerCase()) {
