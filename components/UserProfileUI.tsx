@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { useUser, useClerk } from "@clerk/nextjs"; // استيراد hooks الخاصة بـ Clerk
+import { useUser, useClerk } from "@clerk/nextjs";
 import {
   User,
   Package,
@@ -19,6 +19,9 @@ import {
   Calendar,
   Loader2,
   AlertTriangle,
+  LogOut,
+  Save,
+  Check,
 } from "lucide-react";
 import { useWishlist } from "@/context/WishlistContext";
 import { useCart } from "@/context/CartContext";
@@ -57,12 +60,16 @@ interface UserProfileUIProps {
   user: UserProfileData;
   ordersList?: OrderData[];
   onUpdateAvatar?: (formData: FormData) => Promise<string>;
+  onUpdateProfile?: (data: { name: string }) => Promise<void>; // دالة تحديث بيانات المستخدم
+  onDeleteAccount?: () => Promise<void>; // دالة حذف المستخدم من قاعدة البيانات المخصصة قبل Clerk
 }
 
 export default function UserProfileUI({
   user,
   ordersList = [],
   onUpdateAvatar,
+  onUpdateProfile,
+  onDeleteAccount,
 }: UserProfileUIProps) {
   const { wishlist, removeFromWishlist } = useWishlist();
   const { addToCart } = useCart();
@@ -75,8 +82,15 @@ export default function UserProfileUI({
   const [avatarUrl, setAvatarUrl] = useState<string>(
     user.imageUrl || "/images/default-avatar.png"
   );
+
+  // حالات الإدخال والتعديل
+  const [userName, setUserName] = useState<string>(user.name || "");
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isSavedSuccess, setIsSavedSuccess] = useState(false);
+
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -88,6 +102,7 @@ export default function UserProfileUI({
     };
   }, [avatarUrl]);
 
+  // دالة تغيير وتحديث الصورة الشخصية
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -114,14 +129,67 @@ export default function UserProfileUI({
     }
   };
 
+  // دالة حفظ وتحديث بيانات الملف الشخصي (الاسم)
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userName.trim()) return;
+
+    try {
+      setIsSavingProfile(true);
+
+      // 1. تحديث الاسم في Clerk
+      if (clerkUser) {
+        const names = userName.trim().split(" ");
+        const firstName = names[0] || "";
+        const lastName = names.slice(1).join(" ") || "";
+        await clerkUser.update({
+          firstName,
+          lastName,
+        });
+      }
+
+      // 2. استدعاء دالة التحديث الخارجية (إن وجدت) لتحديث قاعدة البيانات الخاصة بك
+      if (onUpdateProfile) {
+        await onUpdateProfile({ name: userName.trim() });
+      }
+
+      setIsSavedSuccess(true);
+      setTimeout(() => setIsSavedSuccess(false), 3000);
+    } catch (error) {
+      console.error("فشل تحديث البيانات الشخصية:", error);
+      alert("حدث خطأ أثناء حفظ التغييرات، يرجى المحاولة لاحقاً.");
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  // دالة تسجيل الخروج
+  const handleSignOut = async () => {
+    try {
+      setIsLoggingOut(true);
+      await signOut({ redirectUrl: "/" });
+    } catch (error) {
+      console.error("فشل تسجيل الخروج:", error);
+      setIsLoggingOut(false);
+    }
+  };
+
   // دالة التعامل مع حذف الحساب
   const handleDeleteAccount = async () => {
-    if (!clerkUser) return;
     try {
       setIsDeleting(true);
-      // 1. حذف حساب المستخدم من Clerk (سيعالج Webhook حذف البيانات من Postgres/Drizzle)
-      await clerkUser.delete();
-      // 2. إنهاء الجلسة وإعادة التوجيه للرئيسية
+
+      // 1. تنظيف بيانات المستخدم من قاعدة البيانات الخاصة بك إن وجدت
+      if (onDeleteAccount) {
+        await onDeleteAccount();
+      }
+
+      // 2. حذف حساب المستخدم من Clerk
+      if (clerkUser) {
+        await clerkUser.delete();
+      }
+
+      // 3. إنهاء الجلسة وإعادة التوجيه للرئيسية
       await signOut({ redirectUrl: "/" });
     } catch (error) {
       console.error("فشل حذف الحساب:", error);
@@ -168,6 +236,21 @@ export default function UserProfileUI({
             </Link>
             <h1 className="text-xl font-black text-banan-olive">حسابي الشخصي</h1>
           </div>
+
+          {/* زر تسجيل الخروج العلوي */}
+          <button
+            onClick={handleSignOut}
+            disabled={isLoggingOut}
+            className="inline-flex items-center gap-2 text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 px-3.5 py-2 rounded-xl hover:bg-rose-600 hover:text-white transition-all disabled:opacity-50"
+            title="تسجيل الخروج"
+          >
+            {isLoggingOut ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <LogOut size={16} />
+            )}
+            <span className="hidden sm:inline">تسجيل الخروج</span>
+          </button>
         </div>
       </div>
 
@@ -180,7 +263,7 @@ export default function UserProfileUI({
                 {avatarUrl ? (
                   <img
                     src={avatarUrl}
-                    alt={user.name || "المستخدم"}
+                    alt={userName || "المستخدم"}
                     className="w-full h-full object-cover"
                   />
                 ) : (
@@ -213,7 +296,7 @@ export default function UserProfileUI({
 
             <div className="text-center md:text-right flex-grow space-y-2">
               <h2 className="text-2xl font-black text-banan-olive">
-                {user.name || "مستخدم محترم"}
+                {userName || "مستخدم محترم"}
               </h2>
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-xs md:text-sm text-gray-500 font-medium">
                 <span className="flex items-center gap-1.5">
@@ -451,53 +534,104 @@ export default function UserProfileUI({
               exit={{ opacity: 0, y: -10 }}
               className="bg-white rounded-3xl border border-banan-beige/60 p-6 md:p-8 space-y-6"
             >
-              <h3 className="text-lg font-bold text-banan-olive border-b border-banan-beige/40 pb-3">
-                تفاصيل الحساب
-              </h3>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-xs font-bold text-gray-400 mb-2">
-                    الاسم كامل
-                  </label>
-                  <input
-                    type="text"
-                    readOnly
-                    value={user.name || "غير محدد"}
-                    className="w-full bg-banan-bg/30 border border-banan-beige rounded-xl py-3 px-4 text-sm font-bold text-banan-olive outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-400 mb-2">
-                    البريد الإلكتروني
-                  </label>
-                  <input
-                    type="email"
-                    readOnly
-                    value={user.email}
-                    className="w-full bg-banan-bg/30 border border-banan-beige rounded-xl py-3 px-4 text-sm font-bold text-banan-olive outline-none"
-                  />
-                </div>
+              <div className="flex items-center justify-between border-b border-banan-beige/40 pb-3">
+                <h3 className="text-lg font-bold text-banan-olive">
+                  تعديل بيانات الحساب
+                </h3>
+                {isSavedSuccess && (
+                  <span className="text-xs text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full flex items-center gap-1 animate-pulse font-bold">
+                    <Check size={14} /> تم حفظ التغييرات بنجاح
+                  </span>
+                )}
               </div>
 
-              <div className="pt-4 border-t border-banan-beige/40 flex flex-wrap items-center justify-between gap-4">
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="bg-banan-olive text-white px-6 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-banan-brown transition-colors shadow-sm"
-                >
-                  <Camera size={16} />
-                  <span>تحديث الصورة الشخصية</span>
-                </button>
+              {/* نموذج تعديل البيانات */}
+              <form onSubmit={handleSaveProfile} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-400 mb-2">
+                      الاسم الكامل
+                    </label>
+                    <input
+                      type="text"
+                      value={userName}
+                      onChange={(e) => setUserName(e.target.value)}
+                      placeholder="أدخلي الاسم الكامل"
+                      className="w-full bg-banan-bg/30 border border-banan-beige focus:border-banan-olive focus:ring-1 focus:ring-banan-olive transition-all rounded-xl py-3 px-4 text-sm font-bold text-banan-olive outline-none"
+                      required
+                    />
+                  </div>
 
-                {/* زر حذف الحساب */}
-                <button
-                  onClick={() => setShowDeleteModal(true)}
-                  className="bg-rose-50 text-rose-600 border border-rose-200 px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-rose-600 hover:text-white transition-all shadow-xs"
-                >
-                  <Trash2 size={16} />
-                  <span>حذف الحساب نهائياً</span>
-                </button>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-400 mb-2">
+                      البريد الإلكتروني (غير قابل للتعديل)
+                    </label>
+                    <input
+                      type="email"
+                      readOnly
+                      value={user.email}
+                      className="w-full bg-gray-100/70 border border-banan-beige rounded-xl py-3 px-4 text-sm font-bold text-gray-400 outline-none cursor-not-allowed"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end">
+                  <button
+                    type="submit"
+                    disabled={isSavingProfile}
+                    className="bg-banan-olive text-white px-6 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-banan-brown transition-colors shadow-sm disabled:opacity-50"
+                  >
+                    {isSavingProfile ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Save size={16} />
+                    )}
+                    <span>حفظ التغييرات</span>
+                  </button>
+                </div>
+              </form>
+
+              {/* قسم الإجراءات الإضافية والتحكم */}
+              <div className="pt-6 border-t border-banan-beige/40 space-y-4">
+                <h4 className="text-xs font-bold text-gray-400">إجراءات الحساب</h4>
+                
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="bg-banan-bg text-banan-olive border border-banan-beige px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-banan-olive hover:text-white transition-all shadow-xs"
+                  >
+                    <Camera size={16} />
+                    <span>تحديث الصورة الشخصية</span>
+                  </button>
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    {/* زر تسجيل الخروج الفرعي */}
+                    <button
+                      type="button"
+                      onClick={handleSignOut}
+                      disabled={isLoggingOut}
+                      className="bg-gray-100 text-gray-700 px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-gray-200 transition-colors disabled:opacity-50"
+                    >
+                      {isLoggingOut ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <LogOut size={16} />
+                      )}
+                      <span>تسجيل الخروج</span>
+                    </button>
+
+                    {/* زر حذف الحساب */}
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteModal(true)}
+                      className="bg-rose-50 text-rose-600 border border-rose-200 px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-rose-600 hover:text-white transition-all shadow-xs"
+                    >
+                      <Trash2 size={16} />
+                      <span>حذف الحساب نهائياً</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             </motion.div>
           )}
