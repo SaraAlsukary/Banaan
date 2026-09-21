@@ -325,7 +325,7 @@ export default function HomePageUI({
                         </div>
 
                         <div className="bg-white rounded-2xl p-6 shadow-sm flex flex-col items-center text-center space-y-3">
-                            <div className="w-12 h-12 rounded-xl bg-banan-bg flex items-center justify-center text-banan-brown">
+                        <div className="w-12 h-12 rounded-xl bg-banan-bg flex items-center justify-center text-banan-brown">
                                 <Clock size={24} />
                             </div>
                             <h4 className="font-bold">ساعات العمل</h4>

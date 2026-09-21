@@ -35,7 +35,7 @@ function AuthActions({ isMobile = false, onCloseMenu }: { isMobile?: boolean; on
             alt={user.fullName || "الحساب الشخصي"}
             width={isMobile ? 32 : 36}
             height={isMobile ? 32 : 36}
-            className="rounded-full border border-banan-olive/20 object-cover"
+            className="rounded-full border h-12 w-12 border-banan-olive/20 object-cover"
           />
         ) : (
           <User size={isMobile ? 22 : 20} className="text-banan-olive" />
