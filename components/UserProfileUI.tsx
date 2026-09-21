@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useWishlist } from "@/context/WishlistContext";
 import { useCart } from "@/context/CartContext";
+import { deleteAccountServerAction } from "@/app/actions/user";
 
 export interface UserProfileData {
   id: number;
@@ -175,18 +176,28 @@ export default function UserProfileUI({
   };
 
   // دالة التعامل مع حذف الحساب
-  const handleDeleteAccount = async () => {
+
+// ... داخل مكون UserProfileUI
+
+const handleDeleteAccount = async () => {
   try {
     setIsDeleting(true);
-    if (onDeleteAccount) await onDeleteAccount();
-    if (clerkUser) await clerkUser.delete();
+
+    // 1. تنظيف بيانات المستخدم من داتابيز التطبيق أولاً (إن وجدت)
+    if (onDeleteAccount) {
+      await onDeleteAccount();
+    }
+
+    // 2. استدعاء Server Action لحذف المستخدم من Clerk بدون المطالبة بـ Re-authentication
+    await deleteAccountServerAction();
+
+    // 3. إنهاء الجلسة وإعادة التوجيه للرئيسية
     await signOut({ redirectUrl: "/" });
   } catch (error) {
-    // قم بطباعة الخطأ لمعرفة التفاصيل الدقيقة في Console المتصفح
     console.error("تفاصيل خطأ الحذف:", error);
     alert("حدث خطأ أثناء حذف الحساب، يرجى المحاولة لاحقاً.");
-  } finally {
     setIsDeleting(false);
+    setShowDeleteModal(false);
   }
 };
 

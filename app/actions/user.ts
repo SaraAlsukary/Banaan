@@ -44,3 +44,25 @@ export async function updateAvatarAction(formData: FormData): Promise<string> {
 
   return uploadedImageUrl;
 }
+
+"use server";
+
+import { auth } from "@clerk/nextjs/server";
+
+export async function deleteAccountServerAction() {
+  const { userId } = await auth();
+
+  if (!userId) {
+    throw new Error("المستخدم غير مسجل الدخول");
+  }
+
+  const clerk = createClerkClient({
+    secretKey: process.env.CLERK_SECRET_KEY,
+  });
+
+  // 1. حذف بيانات المستخدم من Clerk من جانب السيرفر مباشرة
+  await clerk.users.deleteUser(userId);
+
+  revalidatePath("/");
+  return { success: true };
+}
