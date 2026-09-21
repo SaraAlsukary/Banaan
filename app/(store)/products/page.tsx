@@ -12,25 +12,27 @@ export default async function ProductsPage({
   // 1. فك تشفير المعاملات
   const resolvedSearchParams = await searchParams;
   const subIdParam = resolvedSearchParams.subId;
+  const searchParam = resolvedSearchParams.search;
+  const initialSearch = typeof searchParam === "string" ? searchParam : "";
 
   // 2. جلب جميع التصنيفات الفرعية المتاحة لعرضها في الفلتر العلوي
   const allSubcategoriesData = await db.query.subcategories.findMany();
-  const formattedSubcategories: SubcategoryType[] = allSubcategoriesData.map(sub => ({
+  const formattedSubcategories: SubcategoryType[] = allSubcategoriesData.map((sub) => ({
     id: sub.id,
     name: sub.name,
-    categoryId: sub.categoryId ?? undefined
+    categoryId: sub.categoryId ?? undefined,
   }));
 
   // 3. جلب المنتجات مع التصنيفات الفرعية الخاصة بكل منتج (With Relations)
   let rawProducts: any[] = [];
 
-  if (subIdParam && typeof subIdParam === 'string' && !isNaN(parseInt(subIdParam))) {
+  if (subIdParam && typeof subIdParam === "string" && !isNaN(parseInt(subIdParam))) {
     const subcategoryId = parseInt(subIdParam);
 
     // عند الفلترة بـ subId
     const joinedResults = await db
       .select({
-        product: products
+        product: products,
       })
       .from(products)
       .innerJoin(
@@ -39,7 +41,7 @@ export default async function ProductsPage({
       )
       .where(eq(productSubcategories.subcategoryId, subcategoryId));
 
-    const productIds = joinedResults.map(r => r.product.id);
+    const productIds = joinedResults.map((r) => r.product.id);
 
     if (productIds.length > 0) {
       rawProducts = await db.query.products.findMany({
@@ -47,10 +49,10 @@ export default async function ProductsPage({
         with: {
           subcategories: {
             with: {
-              subcategory: true
-            }
-          }
-        }
+              subcategory: true,
+            },
+          },
+        },
       });
     }
   } else {
@@ -59,10 +61,10 @@ export default async function ProductsPage({
       with: {
         subcategories: {
           with: {
-            subcategory: true
-          }
-        }
-      }
+            subcategory: true,
+          },
+        },
+      },
     });
   }
 
@@ -73,17 +75,20 @@ export default async function ProductsPage({
     shortDescription: p.shortDescription,
     price: p.price.toString(),
     imageUrl: p.imageUrl,
-    subcategories: p.subcategories ? p.subcategories.map((s: any) => ({
-      id: s.subcategory.id,
-      name: s.subcategory.name,
-      categoryId: s.subcategory.categoryId
-    })) : []
+    subcategories: p.subcategories
+      ? p.subcategories.map((s: any) => ({
+          id: s.subcategory.id,
+          name: s.subcategory.name,
+          categoryId: s.subcategory.categoryId,
+        }))
+      : [],
   }));
 
   return (
-    <ProductsPageUI 
-      productsList={formattedProducts} 
-      subcategoriesList={formattedSubcategories} 
+    <ProductsPageUI
+      productsList={formattedProducts}
+      subcategoriesList={formattedSubcategories}
+      initialSearch={initialSearch}
     />
   );
 }

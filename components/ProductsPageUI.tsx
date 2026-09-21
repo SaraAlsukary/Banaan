@@ -1,7 +1,7 @@
 "use client";
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     ShoppingBag,
@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs'; 
 
 // ==========================================
@@ -40,6 +40,7 @@ export interface ProductType {
 interface ProductsPageUIProps {
     productsList?: ProductType[];
     subcategoriesList?: SubcategoryType[];
+    initialSearch?: string;
 }
 
 function extractProductSubcategories(product: ProductType): SubcategoryType[] {
@@ -48,7 +49,6 @@ function extractProductSubcategories(product: ProductType): SubcategoryType[] {
 
     rawList.forEach((item) => {
         if (!item) return;
-        // التعامل مع مختلف أشكال الإرجاع (أثناء الربط المباشر أو العلاقات Drizzle)
         if (item.subcategory && item.subcategory.id) {
             result.push(item.subcategory);
         } else if (item.id && item.name) {
@@ -65,18 +65,28 @@ function extractProductSubcategories(product: ProductType): SubcategoryType[] {
 
 export default function ProductsPageUI({ 
     productsList = [], 
-    subcategoriesList = [] 
+    subcategoriesList = [],
+    initialSearch = ""
 }: ProductsPageUIProps) {
     const router = useRouter();
+    const urlSearchParams = useSearchParams();
     const { addToCart } = useCart();
     const { toggleWishlist, isInWishlist } = useWishlist();
     
     const { isSignedIn } = useUser(); 
 
+    // قراءة البحث من الـ URL مباشرة في حال تم الانتقال أثناء تواجد المستخدم بنفس الصفحة
+    const urlSearchQuery = urlSearchParams.get('search') || initialSearch;
+
     // الحالات (States)
-    const [searchQuery, setSearchQuery] = useState("");
+    const [searchQuery, setSearchQuery] = useState(urlSearchQuery);
     const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<number | "all">("all");
     const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
+
+    // تحديث البحث عند تغيير الـ URL (مثلاً عند إجراء بحث جديد من الهيدر)
+    useEffect(() => {
+        setSearchQuery(urlSearchQuery);
+    }, [urlSearchQuery]);
 
     // دالة معالجة الضغط على المفضلة
     const handleWishlistClick = (product: ProductType) => {
@@ -132,6 +142,8 @@ export default function ProductsPageUI({
     const handleResetFilters = () => {
         setSearchQuery("");
         setSelectedSubcategoryId("all");
+        // تنظيف الـ URL من معامل البحث
+        router.push('/products');
     };
 
     return (
@@ -165,7 +177,10 @@ export default function ProductsPageUI({
                             />
                             {searchQuery && (
                                 <button 
-                                    onClick={() => setSearchQuery("")}
+                                    onClick={() => {
+                                        setSearchQuery("");
+                                        router.push('/products');
+                                    }}
                                     className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 hover:text-gray-600"
                                 >
                                     <X size={16} />

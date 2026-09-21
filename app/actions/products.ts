@@ -26,6 +26,7 @@ async function uploadFile(file: File): Promise<string> {
 // ==========================================
 // 1. جلب جميع المنتجات مع كافة بيانات التصنيفات الفرعية
 // ==========================================
+// in actions.ts
 export async function getProducts() {
     const data = await db.query.products.findMany({
         with: {
@@ -45,12 +46,12 @@ export async function getProducts() {
         shortDescription: product.shortDescription,
         price: product.price,
         imageUrl: product.imageUrl,
-        // إرجاع التصنيفات الفرعية كـ Object محدد يحتوي على id و name
         subcategories: product.subcategories.map(s => ({
             id: s.subcategory.id,
             name: s.subcategory.name,
             categoryId: s.subcategory.categoryId
         })),
+        images: product.images, // إضافة الصور الإضافية إن لزم
         createdAt: product.createdAt ? new Date(product.createdAt).toISOString().split('T')[0] : "بدون تاريخ",
     }));
 }

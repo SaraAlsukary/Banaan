@@ -3,19 +3,17 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Menu, X, ShoppingBag, Search, User, Star, Truck, ShieldCheck, LogIn } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { useAuth, SignInButton, useUser } from "@clerk/nextjs";
 
 // مكون مخصص لإدارة حالة تسجيل الدخول وتجنب مشاكل الـ Hydration
-
 function AuthActions({ isMobile = false, onCloseMenu }: { isMobile?: boolean; onCloseMenu?: () => void }) {
   const { isSignedIn, isLoaded } = useAuth();
-  const { user } = useUser(); // 👈 جلب بيانات المستخدم لعرض صورته
+  const { user } = useUser();
 
-  // هيكل تحميلي مؤقت أثناء جلب حالة التوثيق
   if (!isLoaded) {
     return <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse" />;
   }
@@ -28,14 +26,13 @@ function AuthActions({ isMobile = false, onCloseMenu }: { isMobile?: boolean; on
         className="flex items-center gap-2 hover:opacity-80 transition-opacity"
         title="الملف الشخصي"
       >
-        {/* عرض صورة حساب المستخدم من كليك */}
         {user?.imageUrl ? (
           <Image
             src={user.imageUrl}
             alt={user.fullName || "الحساب الشخصي"}
             width={isMobile ? 32 : 36}
             height={isMobile ? 32 : 36}
-            className="rounded-full border h-12 w-12 border-banan-olive/20 object-cover"
+            className="rounded-full border h-9 w-9 border-banan-olive/20 object-cover"
           />
         ) : (
           <User size={isMobile ? 22 : 20} className="text-banan-olive" />
@@ -60,9 +57,14 @@ function AuthActions({ isMobile = false, onCloseMenu }: { isMobile?: boolean; on
     </SignInButton>
   );
 }
+
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  
   const pathname = usePathname();
+  const router = useRouter();
   const { cartItemsCount, setIsCartOpen } = useCart(); 
 
   const navLinks = [
@@ -72,6 +74,17 @@ export default function Header() {
     { name: 'من نحن', path: '/about' },
     { name: 'تواصل معنا', path: '/contact' },
   ];
+
+  // دالة التعامل مع تنفيذ البحث
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      router.push(`/products?search=${encodeURIComponent(searchQuery.trim())}`);
+      setIsSearchOpen(false);
+      setIsMenuOpen(false);
+      setSearchQuery("");
+    }
+  };
 
   return (
     <>
@@ -110,7 +123,13 @@ export default function Header() {
           {/* Action Icons - Desktop */}
           <div className="flex items-center gap-5">
             <div className="hidden sm:flex items-center gap-4 text-banan-olive/80">
-              <button className="hover:text-banan-brown transition-colors" aria-label="بحث">
+              
+              {/* زر البحث */}
+              <button 
+                onClick={() => setIsSearchOpen(true)}
+                className="hover:text-banan-brown transition-colors" 
+                aria-label="بحث"
+              >
                 <Search size={20} />
               </button>
               
@@ -153,7 +172,12 @@ export default function Header() {
               className="md:hidden bg-white border-t border-gray-100 px-4 py-4 flex flex-col space-y-3 overflow-hidden"
             >
               <div className="flex justify-around items-center py-3 mb-2 border-b border-gray-100 text-banan-olive">
-                <button aria-label="بحث">
+                
+                {/* زر البحث للجوال */}
+                <button 
+                  onClick={() => setIsSearchOpen(true)} 
+                  aria-label="بحث"
+                >
                   <Search size={22} />
                 </button>
                 
@@ -194,6 +218,56 @@ export default function Header() {
           )}
         </AnimatePresence>
       </header>
+
+      {/* نافذة البحث المنبثقة (Search Modal) */}
+      <AnimatePresence>
+        {isSearchOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-start justify-center pt-20 px-4"
+            onClick={() => setIsSearchOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: -20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: -20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl p-4 md:p-6 relative border border-banan-beige"
+            >
+              <div className="flex justify-between items-center mb-4 pb-2 border-b border-gray-100">
+                <h3 className="text-lg font-bold text-banan-olive">البحث في المتجر</h3>
+                <button 
+                  onClick={() => setIsSearchOpen(false)}
+                  className="text-gray-400 hover:text-banan-brown transition-colors p-1"
+                  aria-label="إغلاق"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSearchSubmit} className="relative flex items-center">
+                <input
+                  type="text"
+                  placeholder="ابحث عن منتج، خامة، أو تصنيف..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  autoFocus
+                  className="w-full pl-12 pr-4 py-3 bg-banan-bg/50 border border-banan-beige rounded-xl focus:outline-none focus:ring-2 focus:ring-banan-olive/50 text-banan-brown placeholder-gray-400 font-medium"
+                />
+                <button
+                  type="submit"
+                  className="absolute left-2 bg-banan-olive hover:bg-banan-brown text-white p-2 rounded-lg transition-colors"
+                  aria-label="تأكيد البحث"
+                >
+                  <Search size={18} />
+                </button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }
