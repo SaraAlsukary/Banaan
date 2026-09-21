@@ -65,3 +65,19 @@ export async function deleteAccountServerAction() {
   revalidatePath("/");
   return { success: true };
 }
+
+
+export async function deleteUser(userId: number) {
+  try {
+    await db.delete(users).where(eq(users.id, userId));
+
+    // تحديث البيانات في واجهة الأدمن فوراً
+    revalidatePath("/admin/users");
+    revalidatePath("/admin");
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting user:", error);
+    return { success: false, error: "حدث خطأ أثناء حذف المستخدم" };
+  }
+}
