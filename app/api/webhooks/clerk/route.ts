@@ -48,11 +48,11 @@ export async function POST(req: Request) {
   }
 
   // 4. فحص الأمان لضمان وجود الكائن ونوع الحدث
+// 4. فحص الأمان لضمان وجود الكائن ونوع الحدث
   if (!evt || !evt.type) {
-    console.log('⚠️ وصل طلب بدون type أو كائن غير ممتلئ');
+    console.log('⚠️ وصل طلب بدون type. محتوى الطلب الوارد:', body);
     return new Response('تم استلام الطلب بدون نوع حدث', { status: 200 });
   }
-
   const eventType = evt.type;
   console.log(`ℹ️ نوع الحدث المستلم بوضوح: ${eventType}`);
 
