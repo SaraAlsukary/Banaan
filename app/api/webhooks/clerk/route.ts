@@ -34,33 +34,42 @@ export async function POST(req: Request) {
 
   // 3. التحقق من توقيع Svix
   const wh = new Webhook(SIGNING_SECRET);
-  let evt: WebhookEvent;
+  let rawEvt: any;
 
   try {
-    evt = wh.verify(body, {
+    rawEvt = wh.verify(body, {
       'svix-id': svix_id,
       'svix-timestamp': svix_timestamp,
       'svix-signature': svix_signature,
-    }) as unknown as WebhookEvent;
+    });
   } catch (err) {
     console.error('❌ فشل التحقق من توقيع Svix:', err);
     return new Response('فشل التحقق من التوقيع', { status: 400 });
   }
 
-  // 4. فحص نوع الحدث
-  if (!evt || !evt.type) {
-    console.log('⚠️ وصل طلب بدون type.');
+  // 4. ضمان تحويل النتيجة إلى كائن JSON مقروء
+  let evt: WebhookEvent;
+  try {
+    evt = typeof rawEvt === 'string' ? JSON.parse(rawEvt) : rawEvt;
+  } catch (e) {
+    console.error('❌ فشل تحليل كائن JSON:', e);
+    return new Response('محتوى الطلب غير صالح', { status: 400 });
+  }
+
+  // استخراج نوع الحدث بالتحقق من كافة التركيبات المحتملة
+  const eventType = evt?.type || (evt as any)?.event_type;
+
+  if (!eventType) {
+    console.log('⚠️ وصل طلب بدون type. محتوى البيانات المفككة:', JSON.stringify(evt));
     return new Response('تم استلام الطلب بدون نوع حدث', { status: 200 });
   }
 
-  const eventType = evt.type;
-  console.log(`ℹ️ نوع الحدث المستلم: ${eventType}`);
+  console.log(`ℹ️ نوع الحدث المستلم بوضوح: ${eventType}`);
 
   // 5. معالجة أحداث إنشاء أو تحديث المستخدم
   if (eventType === 'user.created' || eventType === 'user.updated') {
-    const { id, first_name, last_name, email_addresses, primary_email_address_id, image_url } = evt.data;
+    const { id, first_name, last_name, email_addresses, primary_email_address_id, image_url } = evt.data as any;
 
-    // استخراج البريد الإلكتروني الأساسي بشكل أدق
     const primaryEmailObj = email_addresses?.find(
       (email: any) => email.id === primary_email_address_id
     ) || email_addresses?.[0];
@@ -69,17 +78,17 @@ export async function POST(req: Request) {
     const fullName = `${first_name || ''} ${last_name || ''}`.trim() || 'مستخدم';
 
     if (!primaryEmail) {
-      console.error('❌ البريد الإلكتروني مفقود من بيانات المستخدم القادمة من Clerk');
+      console.error('❌ البريد الإلكتروني مفقود من بيانات المستخدم');
       return new Response('البريد الإلكتروني مفقود', { status: 400 });
     }
 
     try {
-      console.log(`⏳ جاري الحفظ/التحديث في Neon للمستخدم: ${fullName} (${id})...`);
+      console.log(`⏳ جاري محاولة الحفظ في Neon للمستخدم: ${fullName} (${id})...`);
 
       await db
         .insert(users)
         .values({
-          clerkId: id,
+          clerkId: id as any,
           name: fullName,
           email: primaryEmail,
           imageUrl: image_url || null,
@@ -93,10 +102,9 @@ export async function POST(req: Request) {
           },
         });
 
-      console.log(`✅ تم الحفظ بنجاح في Neon للمستخدم: ${fullName}`);
+      console.log(`✅ تم الحفظ بنجاح في Neon للمستخدم: ${fullName} (${id})`);
       return new Response('تم حفظ المستخدم بنجاح', { status: 200 });
     } catch (dbError: any) {
-      // طباعة تفاصيل الخطأ بدقة لتحديد السبب في Vercel Logs
       console.error('❌ تفاصيل خطأ Neon DB:', {
         message: dbError?.message,
         detail: dbError?.detail,
@@ -106,5 +114,6 @@ export async function POST(req: Request) {
     }
   }
 
+  console.log(`⚠️ تم تجاهل الحدث (${eventType}) لأنه ليس user.created أو user.updated`);
   return new Response(`تم استلام الحدث وتجاهله: ${eventType}`, { status: 200 });
 }
