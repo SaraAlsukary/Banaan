@@ -45,7 +45,6 @@ export async function updateAvatarAction(formData: FormData): Promise<string> {
   return uploadedImageUrl;
 }
 
-"use server";
 
 import { auth } from "@clerk/nextjs/server";
 
