@@ -117,7 +117,8 @@ export default function AboutPage() {
                         className="relative h-[350px] md:h-[420px] rounded-2xl overflow-hidden shadow-md border-4 border-banan-beige"
                     >
                         <Image
-                            src="https://images.unsplash.com/photo-1620162589998-90b9b39cc598?w=800&q=80"
+                            // src="https://images.unsplash.com/photo-1620162589998-90b9b39cc598?w=800&q=80"
+                            src="/about.jpg"
                             alt="عمل يدي تطريز بنان"
                             fill
                             className="object-cover"
